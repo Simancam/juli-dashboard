@@ -1,55 +1,79 @@
-import { AppSidebar } from "@/components/app-sidebar"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Separator } from "@/components/ui/separator"
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
+"use client"
 
-export default function Page() {
+import { AnalysisFilters } from "@/components/dashboard/analysis-filters"
+import { CommissionPanel } from "@/components/dashboard/commission-panel"
+import { DataUploader } from "@/components/dashboard/data-uploader"
+import { KpiCards } from "@/components/dashboard/kpi-cards"
+import { ProductsRanking } from "@/components/dashboard/products-ranking"
+import { SalesTable } from "@/components/dashboard/sales-table"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { useAuth } from "@/hooks/useAuth"
+import { useDashboardData } from "@/hooks/useDashboardData"
+import { formatDate } from "@/utils/format"
+
+export default function DashboardPage() {
+  const { user } = useAuth()
+  const { overview, error } = useDashboardData()
+
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator
-              orientation="vertical"
-              className="mr-2 data-vertical:h-4 data-vertical:self-auto"
-            />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="#">
-                    Build Your Application
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Data Fetching</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
-        </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-          <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-            <div className="aspect-video rounded-xl bg-muted/50" />
-            <div className="aspect-video rounded-xl bg-muted/50" />
-            <div className="aspect-video rounded-xl bg-muted/50" />
-          </div>
-          <div className="min-h-[100vh] flex-1 rounded-xl bg-muted/50 md:min-h-min" />
+    <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+      <div className="space-y-1">
+        <h1 className="font-heading text-2xl font-semibold tracking-tight">
+          Ventas y comisiones
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Hola, {user?.name}. Carga el informe para ver los indicadores del
+          periodo.
+        </p>
+      </div>
+
+      {error ? (
+        <div
+          role="alert"
+          className="border border-destructive bg-destructive/10 p-3 text-xs text-destructive"
+        >
+          {error}
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+      ) : null}
+
+      <DataUploader />
+
+      {overview ? (
+        <>
+          <AnalysisFilters
+            key={`${overview.period.start}-${overview.period.end}`}
+          />
+          <KpiCards />
+          <p className="text-xs text-muted-foreground">
+            Periodo analizado: {formatDate(overview.period.start)} a{" "}
+            {formatDate(overview.period.end)}
+          </p>
+          <div className="max-w-lg">
+            <CommissionPanel />
+          </div>
+          <SalesTable />
+          <ProductsRanking />
+        </>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Sin datos cargados</CardTitle>
+            <CardDescription>
+              Selecciona un XLSX con el formato del informe de ventas. Verás
+              KPIs, ranking de productos y la comisión calculada en centavos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            El archivo no se guarda: cada análisis se calcula al subirlo.
+          </CardContent>
+        </Card>
+      )}
+    </div>
   )
 }
