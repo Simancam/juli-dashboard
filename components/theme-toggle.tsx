@@ -3,8 +3,10 @@
 import * as React from "react"
 import { useTheme } from "next-themes"
 
+import { hoverRoundedBorder } from "@/components/shared/hover-border"
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler"
 import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 const emptySubscribe = () => () => {}
 
@@ -25,7 +27,10 @@ export function ThemeToggle() {
     return (
       <div
         aria-hidden="true"
-        className={buttonVariants({ variant: "ghost", size: "icon" })}
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "icon" }),
+          hoverRoundedBorder
+        )}
       />
     )
   }
@@ -35,7 +40,10 @@ export function ThemeToggle() {
       variant="circle"
       theme={resolvedTheme === "dark" ? "dark" : "light"}
       onThemeChange={setTheme}
-      className={buttonVariants({ variant: "ghost", size: "icon" })}
+      className={cn(
+        buttonVariants({ variant: "ghost", size: "icon" }),
+        hoverRoundedBorder
+      )}
       aria-label="Cambiar tema"
     />
   )

@@ -1,16 +1,14 @@
-"use client"
+import * as React from "react"
 
 import { AppSidebar } from "@/components/app-sidebar"
+import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb"
 import { AuthGuard } from "@/components/shared/auth-guard"
+import { hoverRoundedBorder } from "@/components/shared/hover-border"
 import { DashboardDataProvider } from "@/contexts/DashboardDataContext"
 import { ThemeToggle } from "@/components/theme-toggle"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@/components/ui/breadcrumb"
+import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
+import { Toaster } from "@/components/ui/sonner"
 import {
   SidebarInset,
   SidebarProvider,
@@ -26,22 +24,17 @@ export default function DashboardLayout({
     <AuthGuard>
       <DashboardDataProvider>
         <SidebarProvider>
+          <Toaster />
           <AppSidebar />
           <SidebarInset>
             <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
               <div className="flex items-center gap-2 px-4">
-                <SidebarTrigger className="-ml-1" />
+                <SidebarTrigger className={cn("-ml-1", hoverRoundedBorder)} />
                 <Separator
                   orientation="vertical"
                   className="mr-2 data-vertical:h-4 data-vertical:self-auto"
                 />
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbPage>Ventas y comisiones</BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
+                <DashboardBreadcrumb />
               </div>
               <div className="ml-auto flex items-center gap-2 px-4">
                 <ThemeToggle />

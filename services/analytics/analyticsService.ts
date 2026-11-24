@@ -8,10 +8,10 @@ import type { DateRange, SaleLineDraft } from "@/types/sales"
 const sum = (values: number[]): number =>
   values.reduce((total, value) => total + value, 0)
 
-export function filterLinesByPeriod(
-  lines: SaleLineDraft[],
+export function filterLinesByPeriod<T extends SaleLineDraft>(
+  lines: T[],
   period: DateRange
-): SaleLineDraft[] {
+): T[] {
   return lines.filter(
     (line) => line.date >= period.start && line.date <= period.end
   )

@@ -74,6 +74,8 @@ export interface DatasetPreview {
 export interface DatasetUploadResponse {
   dataset: Dataset
   report: QualityReport
+  /** Análisis activo creado al persistir el dataset. */
+  analysisId?: string
 }
 
 export interface DatasetListResponse {

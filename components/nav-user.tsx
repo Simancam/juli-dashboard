@@ -22,7 +22,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { hoverRoundedSidebarBorder } from "@/components/shared/hover-border"
 import { useAuth } from "@/hooks/useAuth"
+import { cn } from "@/lib/utils"
 
 export function NavUser() {
   const { user, logout } = useAuth()
@@ -51,7 +53,13 @@ export function NavUser() {
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />
+              <SidebarMenuButton
+                size="lg"
+                className={cn(
+                  "aria-expanded:bg-muted",
+                  hoverRoundedSidebarBorder
+                )}
+              />
             }
           >
             <Avatar>

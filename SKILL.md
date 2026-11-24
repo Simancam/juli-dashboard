@@ -1,6 +1,6 @@
 ---
 name: nextjs-architecture
-description: Estándar obligatorio de arquitectura, estructura de carpetas y convenciones para el proyecto Next.js (App Router, TypeScript, Firebase/Firestore). Proyecto basado en Client Components + API Routes: prohibido usar Server Components y Server Actions. Úsalo SIEMPRE antes de crear o mover archivos, desarrollar una funcionalidad, crear o modificar componentes, páginas, rutas, route handlers, servicios, hooks, contextos, utilidades, tipos, estilos o pruebas, y cuando se pregunte dónde debe ir algo, aunque el usuario no mencione "arquitectura". También aplica al refactorizar o revisar código para verificar que respeta la estructura.
+description: Estándar obligatorio de arquitectura, estructura de carpetas y convenciones para el proyecto Next.js (App Router, TypeScript, Supabase/Postgres). Proyecto basado en Client Components + API Routes: prohibido usar Server Components y Server Actions. Úsalo SIEMPRE antes de crear o mover archivos, desarrollar una funcionalidad, crear o modificar componentes, páginas, rutas, route handlers, servicios, hooks, contextos, utilidades, tipos, estilos o pruebas, y cuando se pregunte dónde debe ir algo, aunque el usuario no mencione "arquitectura". También aplica al refactorizar o revisar código para verificar que respeta la estructura.
 ---
 
 # Arquitectura y estructura del proyecto Next.js
@@ -41,7 +41,7 @@ Antes de escribir código, siempre:
 │   ├── ui/            # Button.tsx
 │   ├── shared/        # Navbar.tsx
 │   └── dashboard/     # AnalyticsCard.tsx
-├── lib/               # firestore.ts, auth.ts
+├── lib/               # supabase.ts, auth.ts
 ├── services/          # apiClient.ts, userService.ts
 ├── hooks/             # useAuth.ts
 ├── contexts/          # AuthContext.tsx
@@ -58,12 +58,12 @@ Se pueden añadir **subcarpetas y archivos** cuando una funcionalidad lo requier
 
 | Directorio | Responsabilidad | NO debe contener |
 |---|---|---|
-| `app/` | Rutas, páginas, layouts y Route Handlers (App Router). Route Groups `(auth)` y `(dashboard)` separan áreas. Las páginas son **Client Components** y solo componen; no contienen lógica compleja ni obtienen datos por su cuenta. | Lógica de negocio, consultas a Firestore, componentes reutilizables, Server Components |
+| `app/` | Rutas, páginas, layouts y Route Handlers (App Router). Route Groups `(auth)` y `(dashboard)` separan áreas. Las páginas son **Client Components** y solo componen; no contienen lógica compleja ni obtienen datos por su cuenta. | Lógica de negocio, consultas a Supabase, componentes reutilizables, Server Components |
 | `components/ui/` | Componentes visuales genéricos y reutilizables (Button, Input, Modal, Card). Independientes del negocio. | Llamadas a servicios, lógica de dominio |
 | `components/shared/` | Componentes compartidos entre módulos (Navbar, Sidebar, Header, Footer). | Componentes de un solo módulo |
 | `components/dashboard/` | Componentes específicos del dashboard. Un módulo nuevo → su subcarpeta propia dentro de `components/`. | Componentes genéricos |
-| `lib/` | Configuración/inicialización de infraestructura y librerías externas (Firebase app, Firestore, Auth). | Lógica de negocio, consultas de dominio |
-| `services/` | Acceso a datos, consultas, operaciones CRUD, comunicación con APIs internas, servicios de negocio. **Único** lugar desde el cliente para hablar con `app/api/` (y para Firestore/Auth en el servidor). | JSX, estado de React |
+| `lib/` | Configuración/inicialización de infraestructura y librerías externas (cliente de Supabase, Auth). | Lógica de negocio, consultas de dominio |
+| `services/` | Acceso a datos, consultas, operaciones CRUD, comunicación con APIs internas, servicios de negocio. **Único** lugar desde el cliente para hablar con `app/api/` (y para Supabase/Auth en el servidor). | JSX, estado de React |
 | `hooks/` | Custom hooks que encapsulan lógica reutilizable de React (consumen services). | Inicialización de terceros |
 | `contexts/` | Context Providers y estado global compartido. | Lógica de acceso a datos directa |
 | `utils/` | Funciones puras e independientes (formateadores, validadores, helpers). | Dependencias de React, efectos secundarios |
@@ -79,7 +79,7 @@ app/ (páginas, Client Components) → components/ → hooks/ · contexts/ → s
                                       utils/ y types/ pueden usarse desde cualquier capa
 ```
 
-- Un componente **nunca** importa `lib/firestore` ni `firebase/firestore`.
+- Un componente **nunca** importa `lib/supabase` ni `@supabase/supabase-js`.
 - Un componente o página **nunca** hace `fetch` directo: llama a `services/`, que es quien se comunica con los Route Handlers.
 - Un `service` **nunca** importa componentes ni hooks.
 - Un Route Handler **nunca** importa componentes, hooks ni contextos.
@@ -90,7 +90,7 @@ app/ (páginas, Client Components) → components/ → hooks/ · contexts/ → s
 - **No se usan Server Components.** Todas las páginas, layouts y componentes son Client Components: declara `'use client'` en la parte superior de cada archivo de UI.
 - **No se usan Server Actions.** Todo acceso a datos pasa por **API Routes** (`app/api/<recurso>/route.ts`).
 - El cliente obtiene datos con `fetch` a los Route Handlers (siempre a través de `services/`); el handler valida, delega en `services/` y responde JSON.
-- Las páginas nunca son `async`, no consultan Firestore ni bases de datos y no reciben datos por props desde el servidor.
+- Las páginas nunca son `async`, no consultan Supabase ni bases de datos y no reciben datos por props desde el servidor.
 - Estado de carga y error (`loading`, `error`) se gestiona en el cliente (hooks/contextos).
 
 ## Reglas obligatorias
@@ -109,7 +109,7 @@ app/ (páginas, Client Components) → components/ → hooks/ · contexts/ → s
 
 ### Lógica y servicios
 - Páginas sin lógica de negocio compleja.
-- Cero consultas directas a Firestore desde componentes visuales: todo pasa por `services/`.
+- Cero consultas directas a Supabase desde componentes visuales: todo pasa por `services/`.
 - Cero `fetch` directos a APIs externas desde componentes o páginas: todo pasa por `services/` → API Routes.
 - Configuración/inicialización de terceros solo en `lib/`.
 - Lógica reutilizable de React en `hooks/`.
@@ -149,7 +149,7 @@ app/ (páginas, Client Components) → components/ → hooks/ · contexts/ → s
 
 1. Definir el alcance y buscar lo reutilizable existente.
 2. **Tipos** → `types/` (nuevo archivo si el dominio es nuevo, p. ej. `types/order.ts`, y reexportar en `types/index.ts`).
-3. **Datos** → `services/<nombre>Service.ts` (usa `lib/` para el cliente de Firestore/Auth y hace `fetch` a los Route Handlers).
+3. **Datos** → `services/<nombre>Service.ts` (usa `lib/` para el cliente de Supabase/Auth y hace `fetch` a los Route Handlers).
 4. **Lógica de React** → `hooks/use<Nombre>.ts` (y `contexts/` solo si el estado debe ser global).
 5. **UI** → `components/ui/` (genérico), `components/shared/` (multi-módulo) o `components/<modulo>/` (específico). Todos con `'use client'`.
 6. **Ruta** → `app/(grupo)/<ruta>/page.tsx` (Client Component) que solo compone; `layout.tsx` si necesita estructura propia.
@@ -183,7 +183,7 @@ Si una funcionalidad parece requerir una carpeta nueva de primer nivel:
 
 - [ ] Cada archivo nuevo está en el directorio correcto y con el nombre correcto.
 - [ ] No se duplicó nada existente.
-- [ ] No hay Firestore/HTTP directo en componentes ni páginas (todo vía `services/` → `app/api/`).
+- [ ] No hay Supabase/HTTP directo en componentes ni páginas (todo vía `services/` → `app/api/`).
 - [ ] Sin Server Components ni Server Actions: todas las páginas/componentes llevan `'use client'` y los datos llegan por API Routes.
 - [ ] Sin `any`, sin imports sin uso, sin código muerto.
 - [ ] Tipos compartidos en `types/`; pruebas añadidas o actualizadas si correspondía.

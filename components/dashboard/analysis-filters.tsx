@@ -24,7 +24,7 @@ export function AnalysisFilters() {
   const [from, setFrom] = React.useState(overview?.period.start ?? "")
   const [to, setTo] = React.useState(overview?.period.end ?? "")
   const [advance, setAdvance] = React.useState(
-    (filters.advanceCents / 100).toFixed(2)
+    String(Math.round(filters.advanceCents / 100))
   )
   const [metric, setMetric] = React.useState<ProductMetric>(filters.metric)
   const [order, setOrder] = React.useState<ProductOrder>(filters.order)
@@ -80,7 +80,8 @@ export function AnalysisFilters() {
           <Input
             type="number"
             min="0"
-            step="1000"
+            step="1"
+            inputMode="numeric"
             value={advance}
             onChange={(event) => setAdvance(event.target.value)}
           />

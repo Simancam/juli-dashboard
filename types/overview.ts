@@ -28,6 +28,9 @@ export interface OverviewFilters {
   order: ProductOrder
   limit: number
   advanceCents: number
+  /** Tasas del perfil elegido; undefined usa las del perfil por defecto. */
+  ownRate?: number
+  teamRate?: number
   includeNonProducts: boolean
   /** Undefined = todos los vendedores; array vacío = ninguno. */
   sellers?: string[]

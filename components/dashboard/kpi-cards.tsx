@@ -44,8 +44,8 @@ const KPIS: KpiDefinition[] = [
     value: (kpis) => formatPercent(kpis.returnRate),
   },
   {
-    label: "Documentos",
-    hint: "Facturas distintas",
+    label: "Comprobantes",
+    hint: "Facturas y NCE",
     value: (kpis) => formatInteger(kpis.documents),
   },
   {

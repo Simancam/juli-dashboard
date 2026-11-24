@@ -7,10 +7,10 @@ import type {
 import type { SaleLineDraft } from "@/types/sales"
 
 /** Filtra las líneas por vendedores. `undefined` significa todos. */
-export function filterLinesBySellers(
-  lines: SaleLineDraft[],
+export function filterLinesBySellers<T extends SaleLineDraft>(
+  lines: T[],
   sellerKeys?: string[]
-): SaleLineDraft[] {
+): T[] {
   if (!sellerKeys) {
     return lines
   }
