@@ -11,7 +11,17 @@ import {
   tableFeatures,
   useTable,
 } from "@tanstack/react-table"
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+  YAxis,
+} from "recharts"
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -60,6 +70,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -71,7 +88,7 @@ import { useDashboardData } from "@/hooks/useDashboardData"
 import { cn } from "@/lib/utils"
 import { getPanel } from "@/services/panelService"
 import type { RankedEntry } from "@/types/analytics"
-import type { PanelMonthlyPoint, PanelResponse, PanelSummary } from "@/types/panel"
+import type { PanelChartPoint, PanelResponse, PanelSummary } from "@/types/panel"
 import {
   formatApproxMoney,
   formatDate,
@@ -81,7 +98,6 @@ import {
   formatPercent,
 } from "@/utils/format"
 
-/** Diccionario de meses: nunca mostramos el número de mes en el eje. */
 const MONTH_NAMES: Record<string, string> = {
   "01": "Ene",
   "02": "Feb",
@@ -101,76 +117,256 @@ function monthName(month: string): string {
   return MONTH_NAMES[month.slice(5)] ?? month
 }
 
-const monthlyChartConfig = {
-  netSalesCents: {
-    label: "Venta neta",
-    color: "#3b82f6",
-  },
-} satisfies ChartConfig
+type ChartMetric = keyof Omit<PanelChartPoint, "bucket">
+type ChartAxis = "month" | "day"
+type ChartType = "area" | "bar" | "line"
 
-function MonthlyChart({ points }: { points: PanelMonthlyPoint[] }) {
-  if (points.length === 0) {
-    return <p className="text-sm text-muted-foreground">Sin ventas en el periodo.</p>
-  }
+const CHART_METRICS: Array<{
+  value: ChartMetric
+  label: string
+  format: (value: number) => string
+  axisFormat: (value: number) => string
+}> = [
+  { value: "netSalesCents", label: "Venta neta", format: formatMoney, axisFormat: formatApproxMoney },
+  { value: "grossSalesCents", label: "Venta bruta", format: formatMoney, axisFormat: formatApproxMoney },
+  { value: "returnsCents", label: "Devoluciones", format: formatMoney, axisFormat: formatApproxMoney },
+  { value: "documents", label: "Comprobantes", format: formatInteger, axisFormat: formatInteger },
+  { value: "clients", label: "Clientes", format: formatInteger, axisFormat: formatInteger },
+  { value: "products", label: "Productos", format: formatInteger, axisFormat: formatInteger },
+  { value: "families", label: "Familias", format: formatInteger, axisFormat: formatInteger },
+  { value: "sellers", label: "Vendedores", format: formatInteger, axisFormat: formatInteger },
+  { value: "warehouses", label: "Bodegas", format: formatInteger, axisFormat: formatInteger },
+  { value: "quantity", label: "Cantidad", format: formatInteger, axisFormat: formatInteger },
+]
+
+const CHART_AXES = [
+  { value: "month", label: "Mes" },
+  { value: "day", label: "Días" },
+] as const
+
+const CHART_TYPES = [
+  { value: "area", label: "Área" },
+  { value: "bar", label: "Barras" },
+  { value: "line", label: "Línea" },
+] as const
+
+interface SalesChartCardProps {
+  points: PanelChartPoint[]
+  months: string[]
+  selectedMonth: string | undefined
+  onMonthChange: (month: string | undefined) => void
+  isLoading: boolean
+}
+
+function SalesChartCard({
+  points,
+  months,
+  selectedMonth,
+  onMonthChange,
+  isLoading,
+}: SalesChartCardProps) {
+  const [metric, setMetric] = React.useState<ChartMetric>("netSalesCents")
+  const [axis, setAxis] = React.useState<ChartAxis>("month")
+  const [chartType, setChartType] = React.useState<ChartType>("area")
+
+  React.useEffect(() => {
+    if (axis === "day" && selectedMonth === undefined && months.length > 0) {
+      onMonthChange(months[months.length - 1])
+    }
+    if (axis === "month" && selectedMonth !== undefined) {
+      onMonthChange(undefined)
+    }
+  }, [axis, months, onMonthChange, selectedMonth])
+
+  const descriptor =
+    CHART_METRICS.find((item) => item.value === metric) ?? CHART_METRICS[0]
+  const data = React.useMemo(
+    () => points.map((point) => ({ bucket: point.bucket, value: point[metric] })),
+    [points, metric]
+  )
+  const config: ChartConfig = React.useMemo(
+    () => ({ value: { label: descriptor.label, color: "#3b82f6" } }),
+    [descriptor.label]
+  )
+  const monthItems = React.useMemo(
+    () =>
+      months.map((month) => ({
+        value: month,
+        label: `${monthName(month)} ${month.slice(0, 4)}`,
+      })),
+    [months]
+  )
+
+  const bucketLabel = (bucket: string) =>
+    axis === "day"
+      ? `${Number(bucket.slice(8, 10))} de ${monthName(bucket.slice(0, 7))}`
+      : monthName(bucket.slice(0, 7))
+
+  const shared = (
+    <>
+      <CartesianGrid vertical={false} />
+      <XAxis
+        dataKey="bucket"
+        tickLine={false}
+        axisLine={false}
+        tickMargin={8}
+        minTickGap={16}
+        tick={{ fontSize: 10 }}
+        tickFormatter={(value) =>
+          axis === "day"
+            ? String(Number(String(value).slice(8, 10)))
+            : monthName(String(value).slice(0, 7))
+        }
+      />
+      <YAxis
+        tickLine={false}
+        axisLine={false}
+        tickMargin={8}
+        width={72}
+        tick={{ fontSize: 10 }}
+        tickFormatter={(value) => descriptor.axisFormat(Number(value))}
+      />
+      <ChartTooltip
+        content={
+          <ChartTooltipContent
+            hideLabel
+            formatter={(value, _name, item) => {
+              const bucket =
+                typeof item?.payload?.bucket === "string"
+                  ? item.payload.bucket
+                  : null
+
+              return (
+                <div className="flex w-full items-center justify-between gap-6">
+                  <span className="text-muted-foreground">
+                    {bucket ? bucketLabel(bucket) : descriptor.label}
+                  </span>
+                  <span className="font-mono font-medium text-foreground tabular-nums">
+                    {descriptor.format(Number(value))}
+                  </span>
+                </div>
+              )
+            }}
+          />
+        }
+      />
+    </>
+  )
 
   return (
-    <ChartContainer
-      config={monthlyChartConfig}
-      className="aspect-auto h-[280px] w-full"
-    >
-      <AreaChart data={points} margin={{ top: 12, right: 12, bottom: 0, left: 0 }}>
-        <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="month"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          tick={{ fontSize: 10 }}
-          tickFormatter={(value) => monthName(String(value))}
-        />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          width={72}
-          tick={{ fontSize: 10 }}
-          tickFormatter={(value) => formatApproxMoney(Number(value))}
-        />
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              hideLabel
-              formatter={(value, _name, item) => {
-                const month =
-                  typeof item?.payload?.month === "string"
-                    ? item.payload.month
-                    : null
-
-                return (
-                  <div className="flex w-full items-center justify-between gap-6">
-                    <span className="text-muted-foreground">
-                      {month ? monthName(month) : "Venta neta"}
-                    </span>
-                    <span className="font-mono font-medium text-foreground tabular-nums">
-                      {formatMoney(Number(value))}
-                    </span>
-                  </div>
-                )
-              }}
-            />
-          }
-        />
-        <Area
-          type="monotone"
-          dataKey="netSalesCents"
-          stroke="var(--color-netSalesCents)"
-          fill="var(--color-netSalesCents)"
-          fillOpacity={0.12}
-          strokeWidth={2}
-          activeDot={{ r: 4 }}
-        />
-      </AreaChart>
-    </ChartContainer>
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          {descriptor.label} por {axis === "day" ? "día" : "mes"}
+        </CardTitle>
+        <CardDescription>
+          {axis === "day" && selectedMonth
+            ? `Días de ${monthName(selectedMonth)} ${selectedMonth.slice(0, 4)}`
+            : "Ventas aprobadas, incluidas NCE. Todo el periodo con datos."}
+        </CardDescription>
+        <CardAction>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Select
+              value={chartType}
+              items={CHART_TYPES}
+              onValueChange={(value) => setChartType((value ?? "area") as ChartType)}
+            >
+              <SelectTrigger size="sm" className="w-[104px]" aria-label="Tipo de gráfica">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CHART_TYPES.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={metric}
+              items={CHART_METRICS}
+              onValueChange={(value) =>
+                setMetric((value ?? "netSalesCents") as ChartMetric)
+              }
+            >
+              <SelectTrigger size="sm" className="w-[124px]" aria-label="Eje Y">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CHART_METRICS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={axis}
+              items={CHART_AXES}
+              onValueChange={(value) => setAxis((value ?? "month") as ChartAxis)}
+            >
+              <SelectTrigger size="sm" className="w-[104px]" aria-label="Eje X">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CHART_AXES.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {axis === "day" ? (
+              <Select
+                value={selectedMonth ?? ""}
+                items={monthItems}
+                onValueChange={(value) => onMonthChange(value ?? undefined)}
+              >
+                <SelectTrigger size="sm" className="w-[128px]" aria-label="Mes del gráfico">
+                  <SelectValue placeholder="Elegir mes" />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+          </div>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
+            <LoaderCircleIcon className="mr-2 size-4 animate-spin" />
+            Cargando gráfica…
+          </div>
+        ) : data.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Sin ventas en el periodo.</p>
+        ) : (
+          <ChartContainer config={config} className="aspect-auto h-[280px] w-full">
+            {chartType === "bar" ? (
+              <BarChart data={data} margin={{ top: 12, right: 12, bottom: 0, left: 0 }}>
+                {shared}
+                <Bar dataKey="value" fill="var(--color-value)" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            ) : chartType === "line" ? (
+              <LineChart data={data} margin={{ top: 12, right: 12, bottom: 0, left: 0 }}>
+                {shared}
+                <Line type="monotone" dataKey="value" stroke="var(--color-value)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              </LineChart>
+            ) : (
+              <AreaChart data={data} margin={{ top: 12, right: 12, bottom: 0, left: 0 }}>
+                {shared}
+                <Area type="monotone" dataKey="value" stroke="var(--color-value)" fill="var(--color-value)" fillOpacity={0.12} strokeWidth={2} activeDot={{ r: 4 }} />
+              </AreaChart>
+            )}
+          </ChartContainer>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -446,14 +642,23 @@ export function PanelView() {
   const [isResultOpen, setIsResultOpen] = React.useState(false)
   const [pendingFile, setPendingFile] = React.useState<File | null>(null)
   const [panelRevision, setPanelRevision] = React.useState(0)
+  const [chartMonth, setChartMonth] = React.useState<string | undefined>()
+  const [loadedChartMonth, setLoadedChartMonth] = React.useState<
+    string | undefined
+  >()
+  const chartMonths = React.useMemo(
+    () => data?.monthly.map((point) => point.month) ?? [],
+    [data]
+  )
 
   React.useEffect(() => {
     let active = true
 
-    getPanel(query)
+    getPanel({ ...query, chartMonth })
       .then((result) => {
         if (active) {
           setData(result)
+          setLoadedChartMonth(result.chartMonth)
           setError(null)
         }
       })
@@ -472,7 +677,7 @@ export function PanelView() {
     return () => {
       active = false
     }
-  }, [query, panelRevision])
+  }, [query, chartMonth, panelRevision])
 
   if (isInitialLoading && !data) {
     return (
@@ -492,6 +697,7 @@ export function PanelView() {
   }
 
   const { coverage, summary } = data
+  const isChartLoading = chartMonth !== loadedChartMonth
   // Los controles reflejan la intención al instante; las cifras se actualizan
   // cuando llega la respuesta, sin mostrar estados de carga entremedias.
   const selectedSellers = query.seller
@@ -737,17 +943,13 @@ export function PanelView() {
         })}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Venta neta por mes</CardTitle>
-          <CardDescription>
-            Ventas aprobadas, incluidas NCE. Todo el periodo con datos.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <MonthlyChart points={data.monthly} />
-        </CardContent>
-      </Card>
+      <SalesChartCard
+        points={data.chart}
+        months={chartMonths}
+        selectedMonth={chartMonth}
+        onMonthChange={setChartMonth}
+        isLoading={isChartLoading}
+      />
 
       <TooltipProvider delay={100}>
         <section className="grid gap-4 lg:grid-cols-2" aria-label="Rankings">

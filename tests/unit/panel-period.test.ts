@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { previousMonthRange, resolvePanelPeriod } from "@/lib/panel-period"
+import {
+  monthRange,
+  previousMonthRange,
+  resolvePanelPeriod,
+} from "@/lib/panel-period"
 
 const coverage = { firstDate: "2025-03-10", lastDate: "2025-11-20" }
 
@@ -53,6 +57,22 @@ describe("resolvePanelPeriod", () => {
         coverage
       )
     ).toEqual({ from: "2025-07-04", to: "2025-07-04" })
+  })
+})
+
+describe("monthRange", () => {
+  it("devuelve el mes completo pedido", () => {
+    expect(monthRange("2026-11")).toEqual({
+      from: "2026-11-01",
+      to: "2026-11-30",
+    })
+  })
+
+  it("respeta febrero en año bisiesto", () => {
+    expect(monthRange("2024-02")).toEqual({
+      from: "2024-02-01",
+      to: "2024-02-29",
+    })
   })
 })
 

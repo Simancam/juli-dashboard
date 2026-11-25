@@ -8,6 +8,10 @@ export const panelQuerySchema = z
     from: isoDateSchema.optional(),
     to: isoDateSchema.optional(),
     seller: z.array(z.string().trim().min(1).max(300)).optional(),
+    chartMonth: z
+      .string()
+      .regex(/^\d{4}-\d{2}$/, "`chartMonth` debe ser YYYY-MM")
+      .optional(),
   })
   .superRefine((value, ctx) => {
     const hasFrom = value.from !== undefined

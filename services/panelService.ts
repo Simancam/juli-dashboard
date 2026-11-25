@@ -5,6 +5,7 @@ export interface PanelParams {
   from?: string
   to?: string
   seller?: string[]
+  chartMonth?: string
 }
 
 export async function getPanel(params: PanelParams = {}): Promise<PanelResponse> {
@@ -14,6 +15,7 @@ export async function getPanel(params: PanelParams = {}): Promise<PanelResponse>
   if (params.from) query.set("from", params.from)
   if (params.to) query.set("to", params.to)
   params.seller?.forEach((seller) => query.append("seller", seller))
+  if (params.chartMonth) query.set("chartMonth", params.chartMonth)
 
   const response = await fetch(`/api/panel?${query.toString()}`, {
     cache: "no-store",

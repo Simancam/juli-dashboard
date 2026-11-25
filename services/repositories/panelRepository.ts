@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseAdmin } from "@/lib/supabase/server"
 import type {
   DataCoverage,
+  PanelChartPoint,
   PanelMonthlyPoint,
   PanelRankings,
   PanelSellerOption,
@@ -11,6 +12,7 @@ import type {
 import type { Database } from "@/types/database.types"
 
 import {
+  mapChartPointRow,
   mapCoverageRow,
   mapMonthlyRow,
   mapPanelSummary,
@@ -26,6 +28,12 @@ export interface PanelRepository {
     to: string,
     sellerKeys: string[] | null
   ): Promise<PanelMonthlyPoint[]>
+  chartPoints(
+    from: string,
+    to: string,
+    granularity: "month" | "day",
+    sellerKeys: string[] | null
+  ): Promise<PanelChartPoint[]>
   coverage(): Promise<DataCoverage>
   rankings(
     from: string,
@@ -102,6 +110,19 @@ export function createPanelRepository(
       if (error) throw new Error(error.message)
 
       return (data ?? []).map(mapMonthlyRow)
+    },
+
+    async chartPoints(from, to, granularity, sellerKeys) {
+      const { data, error } = await client.rpc("panel_chart_points", {
+        p_from: from,
+        p_to: to,
+        p_granularity: granularity,
+        p_seller_keys: sellerArg(sellerKeys),
+      })
+
+      if (error) throw new Error(error.message)
+
+      return (data ?? []).map(mapChartPointRow)
     },
 
     async coverage() {

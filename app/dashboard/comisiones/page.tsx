@@ -46,7 +46,7 @@ import {
 import type { SavedAnalysis } from "@/types/analyses"
 import type { SavedCommissionReport } from "@/types/commission-reports"
 import type { OverviewFilters } from "@/types/overview"
-import { formatDate, formatInteger, formatMoney, formatPercent } from "@/utils/format"
+import { formatDate, formatMoney, formatPercent } from "@/utils/format"
 
 /** Sin dataset no hay líneas desde las que calcular; se ocultan de la lista. */
 function usableAnalyses(analyses: SavedAnalysis[]): SavedAnalysis[] {
@@ -279,11 +279,6 @@ export default function ComisionesPage() {
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          {reports.length > 0 ? (
-            <span className="text-xs text-muted-foreground">
-              {formatInteger(reports.length)} Comisiones guardadas
-            </span>
-          ) : null}
           <Button className="gap-2" onClick={handleSave} disabled={isSaving || !selected || !ratesValid}>
             {isSaving ? <LoaderCircleIcon className="animate-spin" /> : <SaveIcon />}
             Guardar Comisiones
@@ -400,62 +395,94 @@ export default function ComisionesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Comisiones guardadas</CardTitle>
+          <CardTitle>Historial de Comisiones</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent>
           {reports.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Todavía no hay reportes.</p>
+            <div className="flex flex-col items-center gap-1 py-8 text-center">
+              <p className="text-sm font-medium">Sin comisiones guardadas</p>
+              <p className="text-xs text-muted-foreground">
+                Guarda un cálculo para verlo aquí y poder volver a editarlo.
+              </p>
+            </div>
           ) : (
-            reports.map((report) => (
-              <div
-                key={report.id}
-                className="flex flex-wrap items-center justify-between gap-3 border p-3 text-sm"
-              >
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">
-                    {report.sellerKey} · {formatPercent(report.ownRate)} propio /{" "}
-                    {formatPercent(report.teamRate)} equipo ·{" "}
-                    {report.createdAt.slice(0, 10)}
-                  </p>
-                  <p className="font-medium tabular-nums">
-                    Comisión {formatMoney(report.result.totalCommissionCents)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-1">
-                  <Link
-                    className={buttonVariants({ variant: "outline", size: "icon-sm" })}
-                    href={`/dashboard/comisiones/${report.id}`}
-                    aria-label="Ver detalle"
-                    title="Ver detalle"
+            <ul className="divide-y">
+              {reports.map((report) => {
+                const analysis = analyses.find(
+                  (item) => item.id === report.analysisId
+                )
+                const period = analysis
+                  ? `${formatDate(analysis.periodStart)} – ${formatDate(
+                      analysis.periodEnd
+                    )}`
+                  : formatDate(report.createdAt.slice(0, 10))
+
+                return (
+                  <li
+                    key={report.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
                   >
-                    <EyeIcon className="size-3.5" />
-                  </Link>
-                  <Link
-                    className={buttonVariants({ variant: "outline", size: "icon-sm" })}
-                    href={`/dashboard/comisiones/${report.id}?editar=1`}
-                    aria-label="Editar"
-                    title="Editar"
-                  >
-                    <PencilIcon className="size-3.5" />
-                  </Link>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    className="text-destructive hover:bg-transparent hover:text-destructive"
-                    onClick={() => setPendingDelete(report)}
-                    disabled={busyId !== null}
-                    aria-label="Eliminar"
-                    title="Eliminar"
-                  >
-                    {busyId === report.id ? (
-                      <LoaderCircleIcon className="animate-spin" />
-                    ) : (
-                      <Trash2Icon className="size-3.5" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            ))
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="text-sm font-medium tabular-nums">
+                          {formatMoney(report.result.totalCommissionCents)}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          comisión · neto{" "}
+                          <span className="tabular-nums">
+                            {formatMoney(report.result.netToPayCents)}
+                          </span>
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {period} · {report.sellerKey} ·{" "}
+                        {formatPercent(report.ownRate)} propio /{" "}
+                        {formatPercent(report.teamRate)} equipo
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Link
+                        className={buttonVariants({
+                          variant: "ghost",
+                          size: "icon-sm",
+                        })}
+                        href={`/dashboard/comisiones/${report.id}`}
+                        aria-label="Ver detalle"
+                        title="Ver detalle"
+                      >
+                        <EyeIcon className="size-3.5" />
+                      </Link>
+                      <Link
+                        className={buttonVariants({
+                          variant: "ghost",
+                          size: "icon-sm",
+                        })}
+                        href={`/dashboard/comisiones/${report.id}?editar=1`}
+                        aria-label="Editar"
+                        title="Editar"
+                      >
+                        <PencilIcon className="size-3.5" />
+                      </Link>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        className="text-destructive hover:bg-transparent hover:text-destructive"
+                        onClick={() => setPendingDelete(report)}
+                        disabled={busyId !== null}
+                        aria-label="Eliminar"
+                        title="Eliminar"
+                      >
+                        {busyId === report.id ? (
+                          <LoaderCircleIcon className="animate-spin" />
+                        ) : (
+                          <Trash2Icon className="size-3.5" />
+                        )}
+                      </Button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
           )}
         </CardContent>
       </Card>

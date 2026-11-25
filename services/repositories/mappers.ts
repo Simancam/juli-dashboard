@@ -5,6 +5,7 @@ import type { SavedCommissionReport } from "@/types/commission-reports"
 import type { QualityReport } from "@/types/datasets"
 import type {
   DataCoverage,
+  PanelChartPoint,
   PanelMonthlyPoint,
   PanelSummary,
 } from "@/types/panel"
@@ -20,6 +21,7 @@ type CommissionReportRow =
 
 type SummaryRpcRow = Database["public"]["Functions"]["panel_summary"]["Returns"][number]
 type MonthlyRpcRow = Database["public"]["Functions"]["sales_by_month"]["Returns"][number]
+type ChartRpcRow = Database["public"]["Functions"]["panel_chart_points"]["Returns"][number]
 type CoverageRpcRow = Database["public"]["Functions"]["data_coverage"]["Returns"][number]
 
 /** Todos los RPC de ranking devuelven estas columnas; quantity/unit solo en productos. */
@@ -226,6 +228,22 @@ export function mapMonthlyRow(row: MonthlyRpcRow): PanelMonthlyPoint {
     grossSalesCents: toNumber(row.gross_sales_cents),
     returnsCents: toNumber(row.returns_cents),
     documents: toNumber(row.documents),
+  }
+}
+
+export function mapChartPointRow(row: ChartRpcRow): PanelChartPoint {
+  return {
+    bucket: toText(row.bucket).slice(0, 10),
+    netSalesCents: toNumber(row.net_sales_cents),
+    grossSalesCents: toNumber(row.gross_sales_cents),
+    returnsCents: toNumber(row.returns_cents),
+    documents: toNumber(row.documents),
+    clients: toNumber(row.clients),
+    products: toNumber(row.products),
+    families: toNumber(row.families),
+    sellers: toNumber(row.sellers),
+    warehouses: toNumber(row.warehouses),
+    quantity: toNumber(row.quantity),
   }
 }
 

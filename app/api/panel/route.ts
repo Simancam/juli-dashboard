@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { ZodError } from "zod"
 
-import { previousMonthRange, resolvePanelPeriod } from "@/lib/panel-period"
+import { monthRange, previousMonthRange, resolvePanelPeriod } from "@/lib/panel-period"
 import { resolveSellerKeys } from "@/lib/panel-sellers"
 import { panelQuerySchema } from "@/lib/schemas/panel"
 import { createPanelRepository } from "@/services/repositories/panelRepository"
@@ -29,12 +29,21 @@ export async function GET(request: Request) {
     }
     const sellers = await repository.sellers(chartPeriod.from, chartPeriod.to)
     const sellerKeys = resolveSellerKeys(query.seller, sellers)
+    const chartSelection = query.chartMonth
+      ? monthRange(query.chartMonth)
+      : chartPeriod
 
-    const [summary, monthly, rankings, previousSummary] = await Promise.all([
+    const [summary, monthly, rankings, previousSummary, chart] = await Promise.all([
       repository.summary(from, to, sellerKeys),
       repository.monthly(chartPeriod.from, chartPeriod.to, sellerKeys),
       repository.rankings(from, to, RANKING_LIMIT, sellerKeys),
       repository.summary(comparisonPeriod.from, comparisonPeriod.to, sellerKeys),
+      repository.chartPoints(
+        chartSelection.from,
+        chartSelection.to,
+        query.chartMonth ? "day" : "month",
+        sellerKeys
+      ),
     ])
 
     const response: PanelResponse = {
@@ -53,6 +62,8 @@ export async function GET(request: Request) {
           }
         : null,
       monthly,
+      chart,
+      chartMonth: query.chartMonth,
       coverage,
       rankings,
     }

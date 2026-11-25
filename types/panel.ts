@@ -17,6 +17,21 @@ export interface PanelMonthlyPoint {
   documents: number
 }
 
+/** Punto de la gráfica configurable: bucket = YYYY-MM (mes) o YYYY-MM-DD (día). */
+export interface PanelChartPoint {
+  bucket: string
+  netSalesCents: number
+  grossSalesCents: number
+  returnsCents: number
+  documents: number
+  clients: number
+  products: number
+  families: number
+  sellers: number
+  warehouses: number
+  quantity: number
+}
+
 export interface DataCoverage {
   firstDate: string | null
   lastDate: string | null
@@ -50,6 +65,10 @@ export interface PanelResponse {
   /** Mes calendario anterior al final del periodo, sin datos cuando no hay base. */
   comparison: { period: DateRange; summary: PanelSummary } | null
   monthly: PanelMonthlyPoint[]
+  /** Puntos de la gráfica; diarios cuando se pide un mes, mensuales si no. */
+  chart: PanelChartPoint[]
+  /** Mes pedido para la gráfica, para saber si los puntos ya son los actuales. */
+  chartMonth?: string
   coverage: DataCoverage
   rankings: PanelRankings
 }

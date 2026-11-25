@@ -5,6 +5,18 @@ export interface PanelPeriod {
   to: string
 }
 
+/** Rango completo de un mes YYYY-MM. */
+export function monthRange(month: string): PanelPeriod {
+  const year = Number(month.slice(0, 4))
+  const monthNumber = Number(month.slice(5, 7))
+  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
+
+  return {
+    from: `${month}-01`,
+    to: `${month}-${String(lastDay).padStart(2, "0")}`,
+  }
+}
+
 /** Mes calendario anterior al mes en que termina el periodo elegido. */
 export function previousMonthRange(to: string): PanelPeriod {
   const year = Number(to.slice(0, 4))

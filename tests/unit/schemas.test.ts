@@ -5,6 +5,7 @@ import { datasetUploadQuerySchema } from "@/lib/schemas/datasets"
 import { commissionQuerySchema } from "@/lib/schemas/commissions"
 import { commissionReportCreateSchema } from "@/lib/schemas/commission-reports"
 import { overviewQuerySchema } from "@/lib/schemas/overview"
+import { panelQuerySchema } from "@/lib/schemas/panel"
 import { saleLineDraftSchema } from "@/lib/schemas/sales"
 import { makeSaleLineDraft } from "@/tests/fixtures/sales"
 
@@ -28,6 +29,18 @@ describe("schemas", () => {
     })
 
     expect(result.success).toBe(false)
+  })
+
+  it("acepta un mes válido para la gráfica del panel", () => {
+    expect(panelQuerySchema.parse({ chartMonth: "2026-11" }).chartMonth).toBe(
+      "2026-11"
+    )
+  })
+
+  it("rechaza un mes de gráfica mal formado", () => {
+    expect(
+      panelQuerySchema.safeParse({ chartMonth: "2026-11-18" }).success
+    ).toBe(false)
   })
 
   it("aplica defaults de rankings", () => {

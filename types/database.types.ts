@@ -361,6 +361,22 @@ export type Database = {
           share: number
         }[]
       }
+      panel_chart_points: {
+        Args: { p_from: string; p_to: string; p_granularity?: string; p_seller_keys?: string[] }
+        Returns: {
+          bucket: string
+          clients: number
+          documents: number
+          families: number
+          gross_sales_cents: number
+          net_sales_cents: number
+          products: number
+          quantity: number
+          returns_cents: number
+          sellers: number
+          warehouses: number
+        }[]
+      }
       sales_by_month: {
         Args: { p_from: string; p_seller_keys?: string[]; p_to: string }
         Returns: {
