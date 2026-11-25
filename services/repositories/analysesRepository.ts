@@ -21,6 +21,7 @@ export interface CreateAnalysisInput {
   datasetId: string
   periodStart: string
   periodEnd: string
+  name?: string
   fileName: string
   fileHash: string
   report: QualityReport
@@ -107,7 +108,7 @@ export function createAnalysesRepository(
           period_end: input.periodEnd,
           file_name: input.fileName,
           file_hash: input.fileHash,
-          name: input.fileName,
+          name: input.name?.trim() || "Informe de ventas",
           quality_report: asJson(input.report),
           kpis: asJson(input.snapshot.kpis),
           snapshot: asJson(input.snapshot),

@@ -8,6 +8,7 @@ export const datasetUploadQuerySchema = z
     mode: z.enum(["replace"]).optional(),
     periodStart: isoDateSchema.optional(),
     periodEnd: isoDateSchema.optional(),
+    name: z.string().trim().min(1).max(120).optional(),
   })
   .superRefine((value, ctx) => {
     const hasStart = value.periodStart !== undefined

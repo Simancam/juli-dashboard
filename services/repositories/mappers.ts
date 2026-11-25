@@ -134,7 +134,7 @@ export function toSaleLineInsert(
 export function mapAnalysisRow(row: AnalysisRow): SavedAnalysis {
   return {
     id: row.id,
-    name: row.name || row.file_name,
+    name: row.name || "Informe de ventas",
     datasetId: row.dataset_id,
     periodMonth: row.period_month,
     periodStart: row.period_start,
@@ -163,6 +163,8 @@ export function mapAnalysisDetail(row: AnalysisRow): AnalysisDetail {
     report: fromJson<QualityReport>(row.quality_report, {} as QualityReport),
     snapshot: {
       kpis: snapshot.kpis ?? ({} as Kpis),
+      clients: snapshot.clients ?? [],
+      families: snapshot.families ?? [],
       products: snapshot.products ?? [],
       returnedProducts: snapshot.returnedProducts ?? [],
     },
@@ -187,7 +189,12 @@ export function mapCommissionReportRow(
     ownRate: toNumber(row.own_rate),
     teamRate: toNumber(row.team_rate),
     advanceCents: toNumber(row.advance_cents),
-    inputs,
+    inputs: {
+      ...inputs,
+      commissionLines: Array.isArray(inputs.commissionLines)
+        ? inputs.commissionLines
+        : [],
+    },
     result: fromJson(row.result, {} as SavedCommissionReport["result"]),
     reassignments: inputs.reassignments ?? [],
     warnings: fromJson<string[]>(row.warnings, []),

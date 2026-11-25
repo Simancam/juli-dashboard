@@ -6,6 +6,8 @@ import { useParams } from "next/navigation"
 import { LoaderCircleIcon } from "lucide-react"
 
 import { SavedAnalysisView } from "@/components/analyses/saved-analysis-view"
+import { ClientsRankingCard } from "@/components/dashboard/clients-ranking"
+import { FamiliesChartCard } from "@/components/dashboard/families-chart"
 import { buttonVariants } from "@/components/ui/button"
 import {
   Card,
@@ -17,7 +19,7 @@ import {
 import { getAnalysis } from "@/services/analysesService"
 import type { AnalysisDetail } from "@/types/analyses"
 import type { RankedEntry } from "@/types/analytics"
-import { formatInteger, formatMargin, formatMoney } from "@/utils/format"
+import { formatDate, formatInteger, formatMargin, formatMoney } from "@/utils/format"
 
 function SnapshotTable({ title, entries }: { title: string; entries: RankedEntry[] }) {
   return (
@@ -49,14 +51,24 @@ function LegacySnapshot({ analysis }: { analysis: AnalysisDetail }) {
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <div className="space-y-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">
-          {analysis.name}
-        </h1>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">
+            {analysis.name}
+          </h1>
+          <span className="font-heading text-2xl font-semibold tracking-tight text-muted-foreground tabular-nums">
+            {formatDate(analysis.periodStart)} – {formatDate(analysis.periodEnd)}
+          </span>
+        </div>
+        <span
+          className="block text-[10px] text-muted-foreground/70"
+          title={analysis.fileName}
+        >
+          {analysis.fileName}
+        </span>
         <p className="text-sm text-muted-foreground">
-          {analysis.fileName} · {analysis.status} · guardado el{" "}
-          {analysis.createdAt.slice(0, 10)}.{" "}
+          {analysis.status} · guardado el {analysis.createdAt.slice(0, 10)}.{" "}
           <Link className="underline" href="/dashboard/analizar">
-            Volver a Analizar
+            Volver a Análisis
           </Link>
         </p>
       </div>
@@ -91,6 +103,18 @@ function LegacySnapshot({ analysis }: { analysis: AnalysisDetail }) {
             {formatMargin(kpis.weightedMargin)}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {analysis.snapshot.clients.length > 0 ? (
+          <ClientsRankingCard
+            clients={analysis.snapshot.clients}
+            kpis={kpis}
+          />
+        ) : null}
+        {analysis.snapshot.families.length > 0 ? (
+          <FamiliesChartCard families={analysis.snapshot.families} />
+        ) : null}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

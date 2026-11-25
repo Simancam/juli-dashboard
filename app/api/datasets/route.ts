@@ -3,11 +3,7 @@ import { ZodError } from "zod"
 
 import { datasetUploadQuerySchema } from "@/lib/schemas/datasets"
 import { overviewQueryFromUrl } from "@/lib/schemas/overview"
-import {
-  calculateKpis,
-  filterLinesByPeriod,
-  rankProducts,
-} from "@/services/analytics/analyticsService"
+import { filterLinesByPeriod } from "@/services/analytics/analyticsService"
 import { buildOverview } from "@/services/analytics/overviewBuilder"
 import { IngestionError } from "@/services/ingestion/ingestionError"
 import { ingestSalesWorkbook } from "@/services/ingestion/ingestionService"
@@ -115,24 +111,21 @@ export async function POST(request: Request) {
         period,
         query: overviewQuery,
       })
-      const ranked = rankProducts(snapshotLines, {
-        metric: "value",
-        order: "desc",
-        limit: 10,
-        includeNonProducts: false,
-      })
       const analysis = await analyses.createActive({
         datasetId: dataset.id,
         periodStart: period.start,
         periodEnd: period.end,
+        name: query.name ?? "Informe de ventas",
         fileName: file.name,
         fileHash: ingestion.fileHash,
         report: ingestion.report,
         result,
         snapshot: {
-          kpis: calculateKpis(snapshotLines),
-          products: ranked.products,
-          returnedProducts: ranked.returnedProducts,
+          kpis: result.kpis,
+          clients: result.clients,
+          families: result.families,
+          products: result.products,
+          returnedProducts: result.returnedProducts,
         },
       })
 

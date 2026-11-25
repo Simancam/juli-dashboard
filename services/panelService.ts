@@ -15,7 +15,9 @@ export async function getPanel(params: PanelParams = {}): Promise<PanelResponse>
   if (params.to) query.set("to", params.to)
   params.seller?.forEach((seller) => query.append("seller", seller))
 
-  const response = await fetch(`/api/panel?${query.toString()}`)
+  const response = await fetch(`/api/panel?${query.toString()}`, {
+    cache: "no-store",
+  })
   const data = (await response.json().catch(() => null)) as
     | (PanelResponse & { message?: string })
     | null

@@ -25,6 +25,8 @@ export interface SavedAnalysis {
 /** Rankings por defecto calculados en el servidor al guardar el análisis. */
 export interface AnalysisSnapshot {
   kpis: Kpis
+  clients: RankedEntry[]
+  families: RankedEntry[]
   products: RankedEntry[]
   returnedProducts: RankedEntry[]
 }

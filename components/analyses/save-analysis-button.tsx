@@ -8,7 +8,12 @@ import { toast } from "sonner"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { useDashboardData } from "@/hooks/useDashboardData"
 
-export function SaveAnalysisButton() {
+interface SaveAnalysisButtonProps {
+  /** Si se entrega, reemplaza la navegación posterior al guardado. */
+  onSaved?: () => void
+}
+
+export function SaveAnalysisButton({ onSaved }: SaveAnalysisButtonProps = {}) {
   const router = useRouter()
   const { file, overview, analysisId, isSaving, error, save } = useDashboardData()
 
@@ -33,7 +38,11 @@ export function SaveAnalysisButton() {
       toast.success("Informe guardado", {
         description: "Ya está disponible en Informes guardados",
       })
-      router.push("/dashboard/analizar")
+      if (onSaved) {
+        onSaved()
+      } else {
+        router.push("/dashboard/analizar")
+      }
     } else {
       toast.error("No se pudo guardar el análisis", {
         description: error ?? undefined,

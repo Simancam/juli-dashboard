@@ -27,12 +27,14 @@ export interface OverviewFilters {
   metric: ProductMetric
   order: ProductOrder
   limit: number
-  advanceCents: number
   /** Tasas del perfil elegido; undefined usa las del perfil por defecto. */
   ownRate?: number
   teamRate?: number
-  includeNonProducts: boolean
-  /** Undefined = todos los vendedores; array vacío = ninguno. */
+  /** Anticipo en centavos, descontado del total de la comisión. */
+  advanceCents?: number
+  /** El análisis y las comisiones son flujos separados: solo Comisiones lo activa. */
+  includeCommission?: boolean
+  /** Filtro general. Undefined = todos los vendedores; array vacío = ninguno. */
   sellers?: string[]
   /** Undefined = sin selección manual; array vacío = ninguna línea. */
   selectedLines?: number[]
@@ -58,7 +60,12 @@ export interface OverviewResponse {
   /** Líneas del periodo con las columnas clave del Excel. */
   table: SalesTableRow[]
   kpis: Kpis
+  /** Clientes ordenados por venta neta; es la vista principal del análisis. */
+  clients: RankedEntry[]
+  /** Ventas netas agrupadas por familia de producto o servicio. */
+  families: RankedEntry[]
   products: RankedEntry[]
   returnedProducts: RankedEntry[]
-  commission: OverviewCommission
+  /** Solo se calcula cuando el consumidor lo pide (Comisiones). */
+  commission?: OverviewCommission
 }

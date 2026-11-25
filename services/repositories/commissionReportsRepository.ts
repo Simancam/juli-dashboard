@@ -27,10 +27,26 @@ export interface CreateCommissionReportInput {
   warnings: string[]
 }
 
+export interface UpdateCommissionReportInput {
+  sellerKey: string
+  ownRate: number
+  teamRate: number
+  advanceCents: number
+  inputs: CommissionReportInputs & { reassignments: Reassignment[] }
+  result: CommissionResult
+  warnings: string[]
+}
+
 export interface CommissionReportsRepository {
   list(analysisId?: string): Promise<SavedCommissionReport[]>
+  getById(id: string): Promise<SavedCommissionReport | null>
   nextVersion(analysisId: string): Promise<number>
   create(input: CreateCommissionReportInput): Promise<SavedCommissionReport>
+  update(
+    id: string,
+    input: UpdateCommissionReportInput
+  ): Promise<SavedCommissionReport>
+  remove(id: string): Promise<void>
 }
 
 export function createCommissionReportsRepository(
@@ -51,6 +67,18 @@ export function createCommissionReportsRepository(
       if (error) throw new Error(error.message)
 
       return (data ?? []).map(mapCommissionReportRow)
+    },
+
+    async getById(id) {
+      const { data, error } = await client
+        .from("commission_reports")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle()
+
+      if (error) throw new Error(error.message)
+
+      return data ? mapCommissionReportRow(data) : null
     },
 
     async nextVersion(analysisId) {
@@ -90,6 +118,38 @@ export function createCommissionReportsRepository(
       }
 
       return mapCommissionReportRow(data)
+    },
+
+    async update(id, input) {
+      const { data, error } = await client
+        .from("commission_reports")
+        .update({
+          seller_key: input.sellerKey,
+          own_rate: input.ownRate,
+          team_rate: input.teamRate,
+          advance_cents: input.advanceCents,
+          inputs: asJson(input.inputs),
+          result: asJson(input.result),
+          warnings: asJson(input.warnings),
+        })
+        .eq("id", id)
+        .select("*")
+        .single()
+
+      if (error || !data) {
+        throw new Error(error?.message ?? "No se pudo editar el reporte")
+      }
+
+      return mapCommissionReportRow(data)
+    },
+
+    async remove(id) {
+      const { error } = await client
+        .from("commission_reports")
+        .delete()
+        .eq("id", id)
+
+      if (error) throw new Error(error.message)
     },
   }
 }

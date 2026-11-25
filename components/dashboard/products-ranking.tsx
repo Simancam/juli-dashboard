@@ -23,9 +23,9 @@ export function ProductsRanking() {
     <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
       <Card>
         <CardHeader>
-          <CardTitle>6. Productos</CardTitle>
+          <CardTitle>Productos</CardTitle>
           <CardDescription>
-            Ranking por{" "}
+            Incluye servicios y otros no producto · ranking por{" "}
             {byQuantity
               ? "cantidad, separado por unidad de medida"
               : "venta neta"}{" "}

@@ -127,6 +127,7 @@ export type Database = {
           result: NonNullable<Json>
           seller_key: string
           team_rate: number
+          updated_at: string
           version: number
           warnings: NonNullable<Json>
         }
@@ -142,6 +143,7 @@ export type Database = {
           result: NonNullable<Json>
           seller_key: string
           team_rate: number
+          updated_at?: string
           version: number
           warnings?: NonNullable<Json>
         }
@@ -156,6 +158,7 @@ export type Database = {
           result?: NonNullable<Json>
           seller_key?: string
           team_rate?: number
+          updated_at?: string
           version?: number
           warnings?: NonNullable<Json>
         }

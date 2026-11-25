@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import { analyticsFiltersSchema, rankingsQuerySchema } from "@/lib/schemas/analytics"
 import { datasetUploadQuerySchema } from "@/lib/schemas/datasets"
 import { commissionQuerySchema } from "@/lib/schemas/commissions"
+import { commissionReportCreateSchema } from "@/lib/schemas/commission-reports"
+import { overviewQuerySchema } from "@/lib/schemas/overview"
 import { saleLineDraftSchema } from "@/lib/schemas/sales"
 import { makeSaleLineDraft } from "@/tests/fixtures/sales"
 
@@ -48,6 +50,23 @@ describe("schemas", () => {
       periodStart: "2025-10-21",
     })
     expect(missingEnd.success).toBe(false)
+
+    expect(
+      datasetUploadQuerySchema.parse({ name: "  Informe de octubre  " }).name
+    ).toBe("Informe de octubre")
+    expect(datasetUploadQuerySchema.safeParse({ name: "" }).success).toBe(false)
+  })
+
+  it("acepta el anticipo en el cálculo y en el reporte guardado", () => {
+    expect(overviewQuerySchema.parse({ advanceCents: "500" }).advanceCents).toBe(
+      500
+    )
+    expect(
+      commissionReportCreateSchema.parse({
+        analysisId: "123e4567-e89b-12d3-a456-426614174000",
+        advanceCents: 500,
+      }).advanceCents
+    ).toBe(500)
   })
 
   it("valida comisiones con anticipo en centavos", () => {

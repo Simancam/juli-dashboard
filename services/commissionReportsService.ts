@@ -1,4 +1,7 @@
-import type { CommissionReportCreate } from "@/lib/schemas/commission-reports"
+import type {
+  CommissionReportCreate,
+  CommissionReportUpdate,
+} from "@/lib/schemas/commission-reports"
 import type {
   CommissionReportListResponse,
   CommissionReportResponse,
@@ -24,8 +27,17 @@ export async function listCommissionReports(
 export async function getCommissionReport(
   id: string
 ): Promise<SavedCommissionReport | null> {
-  const reports = await listCommissionReports()
-  return reports.find((report) => report.id === id) ?? null
+  const response = await fetch(`/api/commission-reports/${encodeURIComponent(id)}`)
+  const data = (await response.json().catch(() => null)) as
+    | (CommissionReportResponse & { message?: string })
+    | null
+
+  if (response.status === 404) return null
+  if (!response.ok || !data) {
+    throw new Error(data?.message ?? "No se pudo cargar el reporte")
+  }
+
+  return data.report
 }
 
 export async function createCommissionReport(
@@ -45,4 +57,37 @@ export async function createCommissionReport(
   }
 
   return data.report
+}
+
+export async function updateCommissionReport(
+  id: string,
+  input: CommissionReportUpdate
+): Promise<SavedCommissionReport> {
+  const response = await fetch(`/api/commission-reports/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  })
+  const data = (await response.json().catch(() => null)) as
+    | (CommissionReportResponse & { message?: string })
+    | null
+
+  if (!response.ok || !data) {
+    throw new Error(data?.message ?? "No se pudo editar el reporte")
+  }
+
+  return data.report
+}
+
+export async function deleteCommissionReport(id: string): Promise<void> {
+  const response = await fetch(`/api/commission-reports/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  })
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as
+      | { message?: string }
+      | null
+    throw new Error(data?.message ?? "No se pudo eliminar el reporte")
+  }
 }

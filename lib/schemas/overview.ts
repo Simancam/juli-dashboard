@@ -13,11 +13,13 @@ export const overviewQuerySchema = z
     metric: z.enum(["value", "quantity"]).default("value"),
     order: z.enum(["asc", "desc"]).default("desc"),
     limit: z.coerce.number().int().min(1).max(50).default(10),
-    advance: z.coerce.number().int().min(0).default(0),
     /** Tasas del perfil elegido en Comisiones; el servidor siempre recalcula. */
     ownRate: z.coerce.number().min(0).max(1).optional(),
     teamRate: z.coerce.number().min(0).max(1).optional(),
-    includeNonProducts: z.preprocess(parseBoolean, z.boolean()),
+    /** Anticipo en centavos; solo afecta el neto del cálculo de comisiones. */
+    advanceCents: z.coerce.number().int().min(0).optional(),
+    /** El flujo de Análisis no calcula comisiones. */
+    includeCommission: z.preprocess(parseBoolean, z.boolean()).default(false),
     sellers: z.array(z.string().min(1)).optional(),
     selectedLines: z.array(z.coerce.number().int().nonnegative()).optional(),
     reassignedLines: z.array(z.coerce.number().int().nonnegative()).optional(),

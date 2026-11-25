@@ -7,7 +7,7 @@ import { useDashboardData } from "@/hooks/useDashboardData"
 export function SalesTable() {
   const { overview, filters, isLoading, applyFilters } = useDashboardData()
 
-  if (!overview) {
+  if (!overview?.commission) {
     return null
   }
 
@@ -18,7 +18,7 @@ export function SalesTable() {
       selectedLines={filters.selectedLines}
       reassignedLines={filters.reassignedLines}
       isLoading={isLoading}
-      title="5. Ventas · selección manual"
+      title="Reasignar"
       onSelectedLinesChange={(selectedLines) => {
         void applyFilters({ selectedLines })
       }}

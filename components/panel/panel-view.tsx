@@ -1,21 +1,37 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import {
+  createColumnHelper,
+  createPaginatedRowModel,
+  createSortedRowModel,
+  rowPaginationFeature,
+  rowSortingFeature,
+  sortFn_alphanumeric,
+  tableFeatures,
+  useTable,
+} from "@tanstack/react-table"
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  ChartColumnIcon,
   ChevronDownIcon,
+  ChevronsUpDownIcon,
   FileUpIcon,
   LoaderCircleIcon,
+  XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { AnalysisResultContent } from "@/components/dashboard/analysis-result-content"
+import { EditableAnalysisName } from "@/components/dashboard/editable-analysis-name"
 import FileUploadDemo from "@/components/file-upload-demo"
 import { DateRangeFilter } from "@/components/panel/date-range-filter"
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -23,7 +39,14 @@ import {
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
+import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -78,89 +101,139 @@ function monthName(month: string): string {
   return MONTH_NAMES[month.slice(5)] ?? month
 }
 
+const monthlyChartConfig = {
+  netSalesCents: {
+    label: "Venta neta",
+    color: "#3b82f6",
+  },
+} satisfies ChartConfig
+
 function MonthlyChart({ points }: { points: PanelMonthlyPoint[] }) {
   if (points.length === 0) {
     return <p className="text-sm text-muted-foreground">Sin ventas en el periodo.</p>
   }
 
-  const width = 760
-  const height = 280
-  const pad = { left: 18, right: 18, top: 34, bottom: 44 }
-  const plotWidth = width - pad.left - pad.right
-  const plotHeight = height - pad.top - pad.bottom
-
-  const values = points.map((point) => Math.round(point.netSalesCents / 100))
-  const max = Math.max(...values, 0)
-  const min = Math.min(...values, 0)
-  const span = max - min || 1
-
-  const xOf = (index: number) =>
-    points.length === 1
-      ? pad.left + plotWidth / 2
-      : pad.left + (index * plotWidth) / (points.length - 1)
-  const yOf = (value: number) => pad.top + ((max - value) / span) * plotHeight
-
-  const coordinates = values.map((value, index) => ({
-    x: xOf(index),
-    y: yOf(value),
-    value,
-  }))
-  const line = coordinates.map(({ x, y }) => `${x},${y}`).join(" ")
-
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="w-full"
-      role="img"
-      aria-label="Venta neta mensual"
+    <ChartContainer
+      config={monthlyChartConfig}
+      className="aspect-auto h-[280px] w-full"
     >
-      <line
-        x1={pad.left}
-        y1={yOf(0)}
-        x2={width - pad.right}
-        y2={yOf(0)}
-        className="stroke-border"
-        strokeDasharray="4 4"
-      />
-      <polyline
-        points={line}
-        fill="none"
-        className="stroke-primary"
-        strokeWidth={2.5}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      {coordinates.map(({ x, y, value }, index) => (
-        <g key={points[index].month}>
-          <circle
-            cx={x}
-            cy={y}
-            r={4}
-            className="fill-primary stroke-background"
-            strokeWidth={2}
-          >
-            <title>{`${monthName(points[index].month)}: $${formatInteger(value)}`}</title>
-          </circle>
-          <text
-            x={x}
-            y={y - 10}
-            textAnchor="middle"
-            className="fill-foreground text-[10px] font-medium"
-          >
-            {formatApproxMoney(points[index].netSalesCents)}
-          </text>
-          <text
-            x={x}
-            y={height - pad.bottom + 20}
-            textAnchor="middle"
-            className="fill-muted-foreground text-[10px]"
-          >
-            {monthName(points[index].month)}
-          </text>
-        </g>
-      ))}
-    </svg>
+      <AreaChart data={points} margin={{ top: 12, right: 12, bottom: 0, left: 0 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="month"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={8}
+          tick={{ fontSize: 10 }}
+          tickFormatter={(value) => monthName(String(value))}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          tickMargin={8}
+          width={72}
+          tick={{ fontSize: 10 }}
+          tickFormatter={(value) => formatApproxMoney(Number(value))}
+        />
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              hideLabel
+              formatter={(value, _name, item) => {
+                const month =
+                  typeof item?.payload?.month === "string"
+                    ? item.payload.month
+                    : null
+
+                return (
+                  <div className="flex w-full items-center justify-between gap-6">
+                    <span className="text-muted-foreground">
+                      {month ? monthName(month) : "Venta neta"}
+                    </span>
+                    <span className="font-mono font-medium text-foreground tabular-nums">
+                      {formatMoney(Number(value))}
+                    </span>
+                  </div>
+                )
+              }}
+            />
+          }
+        />
+        <Area
+          type="monotone"
+          dataKey="netSalesCents"
+          stroke="var(--color-netSalesCents)"
+          fill="var(--color-netSalesCents)"
+          fillOpacity={0.12}
+          strokeWidth={2}
+          activeDot={{ r: 4 }}
+        />
+      </AreaChart>
+    </ChartContainer>
   )
+}
+
+const useIsomorphicLayoutEffect =
+  typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
+
+const rankingFeatures = tableFeatures({
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+  sortFns: { alphanumeric: sortFn_alphanumeric },
+  rowPaginationFeature,
+  paginatedRowModel: createPaginatedRowModel(),
+})
+
+const rankingColumnHelper = createColumnHelper<
+  typeof rankingFeatures,
+  RankedEntry
+>()
+
+function SortIcon({ direction }: { direction: false | "asc" | "desc" }) {
+  if (direction === "asc") return <ArrowUpIcon className="size-3" />
+  if (direction === "desc") return <ArrowDownIcon className="size-3" />
+  return <ChevronsUpDownIcon className="size-3 opacity-50" />
+}
+
+function createRankingColumns(nameLabel: string) {
+  return rankingColumnHelper.columns([
+    rankingColumnHelper.accessor("label", {
+      sortFn: "alphanumeric",
+      header: ({ column }) => (
+        <th className="h-7 py-0 text-left font-medium">
+          <button
+            type="button"
+            className="flex items-center gap-1 hover:text-foreground"
+            onClick={column.getToggleSortingHandler()}
+          >
+            {nameLabel}
+            <SortIcon direction={column.getIsSorted()} />
+          </button>
+        </th>
+      ),
+      cell: (info) => <td className="truncate py-0 pr-2">{info.getValue()}</td>,
+    }),
+    rankingColumnHelper.accessor("netSalesCents", {
+      header: ({ column }) => (
+        <th className="h-7 py-0 text-right font-medium">
+          <button
+            type="button"
+            className="flex w-full items-center justify-end gap-1 hover:text-foreground"
+            onClick={column.getToggleSortingHandler()}
+          >
+            Venta neta
+            <SortIcon direction={column.getIsSorted()} />
+          </button>
+        </th>
+      ),
+      cell: (info) => (
+        <td className="py-0 text-right tabular-nums">
+          {formatMoney(info.getValue())}
+        </td>
+      ),
+    }),
+  ])
 }
 
 interface RankingTableProps {
@@ -178,101 +251,135 @@ function RankingTable({
   className,
   nameLabel = "Nombre",
 }: RankingTableProps) {
-  const [page, setPage] = React.useState(0)
-  const totalPages = Math.max(1, Math.ceil(entries.length / pageSize))
-  const currentPage = Math.min(page, totalPages - 1)
-  const start = currentPage * pageSize
-  const visible = entries.slice(start, start + pageSize)
+  const columns = React.useMemo(
+    () => createRankingColumns(nameLabel),
+    [nameLabel]
+  )
+  const table = useTable({
+    features: rankingFeatures,
+    columns,
+    data: entries,
+    initialState: { pagination: { pageIndex: 0, pageSize } },
+    autoResetPageIndex: false,
+  })
+
+  const rows = table.getRowModel().rows
+  const rowCount = table.getRowCount()
+  const pageCount = Math.max(1, table.getPageCount())
+  const { pageIndex, pageSize: currentPageSize } = table.state.pagination
+  const currentPage = Math.min(pageIndex, pageCount - 1)
+  const start = currentPage * currentPageSize
+  const end = Math.min(start + currentPageSize, rowCount)
+
+  useIsomorphicLayoutEffect(() => {
+    const { pageIndex: index, pageSize: size } = table.state.pagination
+    if (size !== pageSize) {
+      table.setPagination({ pageIndex: 0, pageSize })
+      return
+    }
+    if (index >= pageCount) {
+      table.setPageIndex(pageCount - 1)
+    }
+  }, [pageCount, pageSize, table])
 
   return (
     <Card className={cn("h-full", className)}>
-      <CardHeader className="pb-2">
+      <CardHeader className="shrink-0 pb-2">
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col">
-        {entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sin datos.</p>
-        ) : (
-          <>
-            <div className="min-h-0 flex-1">
-              <table className="h-full w-full text-sm">
-                <thead className="text-xs text-muted-foreground">
-                  <tr className="border-b">
-                    <th className="py-1 text-left font-medium">{nameLabel}</th>
-                    <th className="py-1 text-right font-medium">Venta neta</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((entry) => (
-                    <Tooltip key={entry.key}>
-                      <TooltipTrigger
-                        render={
-                          <tr className="cursor-default border-b last:border-0 hover:bg-muted/50" />
-                        }
-                      >
-                        <td className="py-1.5 pr-2">{entry.label}</td>
-                        <td className="py-1.5 text-right tabular-nums">
-                          {formatMoney(entry.netSalesCents)}
-                        </td>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="top"
-                        align="start"
-                        className="flex w-52 flex-col items-stretch gap-2 bg-card p-3 text-card-foreground shadow-lg ring-1 ring-foreground/10"
-                        arrowClassName="bg-card fill-card"
-                      >
-                        <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-xs">
-                          <dt className="text-muted-foreground">
-                            Participación
-                          </dt>
-                          <dd className="text-right tabular-nums">
-                            {formatPercent(entry.share)}
-                          </dd>
-                          <dt className="text-muted-foreground">Comprobantes</dt>
-                          <dd className="text-right tabular-nums">
-                            {formatInteger(entry.documents)}
-                          </dd>
-                          <dt className="text-muted-foreground">Margen</dt>
-                          <dd className="text-right tabular-nums">
-                            {formatMargin(entry.margin)}
-                          </dd>
-                        </dl>
-                      </TooltipContent>
-                    </Tooltip>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <table className="w-full table-fixed text-sm">
+            <thead className="text-xs text-muted-foreground">
+              {table.getHeaderGroups().map((group) => (
+                <tr key={group.id} className="border-b">
+                  {group.headers.map((header) => (
+                    <table.FlexRender key={header.id} header={header} />
                   ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground">
-              <span className="tabular-nums">
-                {formatInteger(start + 1)}–
-                {formatInteger(Math.min(start + pageSize, entries.length))} de{" "}
-                {formatInteger(entries.length)}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={currentPage === 0}
-                  onClick={() => setPage(currentPage - 1)}
-                >
-                  Anterior
-                </Button>
-                <span className="tabular-nums">
-                  {formatInteger(currentPage + 1)}/{formatInteger(totalPages)}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={currentPage >= totalPages - 1}
-                  onClick={() => setPage(currentPage + 1)}
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={table.getAllLeafColumns().length}
+                    className="h-8 text-muted-foreground"
+                  >
+                    Sin datos.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
+                  <Tooltip key={row.original.key}>
+                    <TooltipTrigger
+                      render={
+                        <tr className="h-8 cursor-default border-b last:border-0 hover:bg-muted/50" />
+                      }
+                    >
+                      {row.getAllCells().map((cell) => (
+                        <table.FlexRender key={cell.id} cell={cell} />
+                      ))}
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      align="start"
+                      className="flex w-52 flex-col items-stretch gap-2 bg-card p-3 text-card-foreground shadow-lg ring-1 ring-foreground/10"
+                      arrowClassName="bg-card fill-card"
+                    >
+                      <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-xs">
+                        <dt className="text-muted-foreground">
+                          Participación
+                        </dt>
+                        <dd className="text-right tabular-nums">
+                          {formatPercent(row.original.share)}
+                        </dd>
+                        <dt className="text-muted-foreground">Comprobantes</dt>
+                        <dd className="text-right tabular-nums">
+                          {formatInteger(row.original.documents)}
+                        </dd>
+                        <dt className="text-muted-foreground">Margen</dt>
+                        <dd className="text-right tabular-nums">
+                          {formatMargin(row.original.margin)}
+                        </dd>
+                      </dl>
+                    </TooltipContent>
+                  </Tooltip>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-auto flex shrink-0 items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground">
+          <span className="tabular-nums">
+            {rowCount === 0
+              ? "Sin resultados"
+              : `${formatInteger(start + 1)}–${formatInteger(
+                  end
+                )} de ${formatInteger(rowCount)}`}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
+            >
+              Anterior
+            </Button>
+            <span className="tabular-nums">
+              {formatInteger(currentPage + 1)}/{formatInteger(pageCount)}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   )
@@ -325,14 +432,20 @@ interface PanelQuery {
 }
 
 export function PanelView() {
-  const router = useRouter()
-  const { analyze, isLoading: isAnalyzing, error: analyzeError } = useDashboardData()
+  const {
+    overview,
+    analyze,
+    isLoading: isAnalyzing,
+    error: analyzeError,
+  } = useDashboardData()
   const [data, setData] = React.useState<PanelResponse | null>(null)
   const [query, setQuery] = React.useState<PanelQuery>({})
   const [error, setError] = React.useState<string | null>(null)
   const [isInitialLoading, setIsInitialLoading] = React.useState(true)
   const [isAnalyzeOpen, setIsAnalyzeOpen] = React.useState(false)
+  const [isResultOpen, setIsResultOpen] = React.useState(false)
   const [pendingFile, setPendingFile] = React.useState<File | null>(null)
+  const [panelRevision, setPanelRevision] = React.useState(0)
 
   React.useEffect(() => {
     let active = true
@@ -359,7 +472,7 @@ export function PanelView() {
     return () => {
       active = false
     }
-  }, [query])
+  }, [query, panelRevision])
 
   if (isInitialLoading && !data) {
     return (
@@ -425,26 +538,19 @@ export function PanelView() {
     toast.success("Análisis listo", { description: pendingFile.name })
     setIsAnalyzeOpen(false)
     setPendingFile(null)
-    router.push("/dashboard/analizar/resultado")
+    setIsResultOpen(true)
   }
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">
-            Panel histórico
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Periodo {formatDate(period.start)} – {formatDate(period.end)} ·{" "}
-            {formatInteger(summary.documents)} comprobantes. Solo cargas en estado
-            listo.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+        <h1 className="font-heading text-2xl font-semibold tracking-tight">
+          Panel histórico
+        </h1>
+        <div className="flex flex-wrap items-end gap-2">
           <Dialog open={isAnalyzeOpen} onOpenChange={setIsAnalyzeOpen}>
             <DialogTrigger render={<Button className="gap-2" />}>
-              <FileUpIcon />
+              <ChartColumnIcon />
               Analizar
             </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
@@ -452,7 +558,7 @@ export function PanelView() {
                 <DialogTitle>Analizar informe de ventas</DialogTitle>
                 <DialogDescription>
                   Arrastra un XLSX o haz clic para elegirlo. El resultado se abre
-                  en otra vista y solo se guarda si pulsas Guardar.
+                  en una ventana amplia y solo se guarda si pulsas Guardar.
                 </DialogDescription>
               </DialogHeader>
               <FileUploadDemo onFiles={handleFiles} />
@@ -606,28 +712,25 @@ export function PanelView() {
             <Card key={item.label}>
               <CardHeader className="pb-1">
                 <CardDescription>{item.label}</CardDescription>
+                {delta ? (
+                  <CardAction>
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium tabular-nums",
+                        delta.direction === "up"
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400"
+                          : "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-400"
+                      )}
+                    >
+                      {delta.label}
+                    </span>
+                  </CardAction>
+                ) : null}
               </CardHeader>
-              <CardContent className="space-y-1">
+              <CardContent>
                 <span className="text-xl font-semibold tabular-nums">
                   {item.format(current)}
                 </span>
-                {delta ? (
-                  <p
-                    className={cn(
-                      "flex items-center gap-1 text-xs font-medium",
-                      delta.direction === "up"
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-red-600 dark:text-red-400"
-                    )}
-                  >
-                    {delta.direction === "up" ? (
-                      <ArrowUpIcon className="size-3.5" />
-                    ) : (
-                      <ArrowDownIcon className="size-3.5" />
-                    )}
-                    {delta.label}
-                  </p>
-                ) : null}
               </CardContent>
             </Card>
           )
@@ -660,6 +763,39 @@ export function PanelView() {
           <RankingTable title="Bodegas" entries={data.rankings.warehouses} />
         </section>
       </TooltipProvider>
+
+      <Dialog open={isResultOpen} onOpenChange={setIsResultOpen}>
+        <DialogContent
+          showCloseButton={false}
+          className="flex h-[92vh] max-w-[96vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[96vw]"
+        >
+          <DialogHeader className="flex shrink-0 flex-row items-center justify-between gap-3 border-b px-4 py-3">
+            <DialogTitle className="sr-only">Nombre del informe</DialogTitle>
+            <EditableAnalysisName className="min-w-0 flex-1 text-base md:text-base" />
+            <DialogClose
+              render={
+                <Button variant="ghost" size="icon-sm" aria-label="Cerrar" />
+              }
+            >
+              <XIcon />
+            </DialogClose>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {overview ? (
+              <AnalysisResultContent
+                onSaved={() => {
+                  setIsResultOpen(false)
+                  setPanelRevision((revision) => revision + 1)
+                }}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No hay un análisis en curso.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

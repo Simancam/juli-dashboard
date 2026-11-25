@@ -2,12 +2,8 @@
 
 import Link from "next/link"
 
-import { SaveAnalysisButton } from "@/components/analyses/save-analysis-button"
-import { AnalysisFilters } from "@/components/dashboard/analysis-filters"
-import { CommissionPanel } from "@/components/dashboard/commission-panel"
-import { KpiCards } from "@/components/dashboard/kpi-cards"
-import { ProductsRanking } from "@/components/dashboard/products-ranking"
-import { SalesTable } from "@/components/dashboard/sales-table"
+import { AnalysisResultContent } from "@/components/dashboard/analysis-result-content"
+import { EditableAnalysisName } from "@/components/dashboard/editable-analysis-name"
 import { buttonVariants } from "@/components/ui/button"
 import {
   Card,
@@ -17,7 +13,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { useDashboardData } from "@/hooks/useDashboardData"
-import { formatDate, formatInteger } from "@/utils/format"
 
 export default function AnalysisResultPage() {
   const { file, overview, analysisId, error } = useDashboardData()
@@ -26,23 +21,19 @@ export default function AnalysisResultPage() {
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">
-            Resultado del análisis
-          </h1>
+          <EditableAnalysisName className="text-2xl md:text-2xl" />
           <p className="text-sm text-muted-foreground">
             {file?.name ?? (analysisId ? "Análisis guardado" : "Sin archivo en memoria")}{" "}
-            · revisa los indicadores y guarda si quieres conservar el informe.
+            · clientes, productos e indicadores del periodo. El cálculo de
+            comisiones vive en su propia sección.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            className={buttonVariants({ variant: "ghost" })}
-            href="/dashboard/analizar"
-          >
-            Volver a Analizar
-          </Link>
-          <SaveAnalysisButton />
-        </div>
+        <Link
+          className={buttonVariants({ variant: "ghost" })}
+          href="/dashboard/analizar"
+        >
+          Volver a Análisis
+        </Link>
       </div>
 
       {error ? (
@@ -56,32 +47,7 @@ export default function AnalysisResultPage() {
 
       {overview ? (
         <>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                Informe del {overview.period.start.slice(0, 4)}
-              </CardTitle>
-              <CardDescription>
-                {formatInteger(overview.report.validRows)} líneas válidas del{" "}
-                {formatDate(overview.period.start)} al{" "}
-                {formatDate(overview.period.end)}.
-                {analysisId
-                  ? " Este informe está guardado y se puede volver a consultar."
-                  : " Todavía no está guardado: pulsa Guardar para conservarlo."}
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
-          <AnalysisFilters
-            key={`${overview.period.start}-${overview.period.end}`}
-          />
-          <KpiCards />
-
-          <div className="max-w-lg">
-            <CommissionPanel />
-          </div>
-          <SalesTable />
-          <ProductsRanking />
+          <AnalysisResultContent />
         </>
       ) : (
         <Card>
@@ -97,7 +63,7 @@ export default function AnalysisResultPage() {
               className={buttonVariants({ variant: "outline" })}
               href="/dashboard/analizar"
             >
-              Ir a Analizar
+              Ir a Análisis
             </Link>
           </CardContent>
         </Card>

@@ -5,15 +5,19 @@ export function buildOverviewQuery(filters: OverviewFilters): string {
     metric: filters.metric,
     order: filters.order,
     limit: String(filters.limit),
-    advance: String(filters.advanceCents),
-    includeNonProducts: String(filters.includeNonProducts),
   })
 
+  if (filters.includeCommission) {
+    params.set("includeCommission", "true")
+  }
   if (filters.ownRate !== undefined) {
     params.set("ownRate", String(filters.ownRate))
   }
   if (filters.teamRate !== undefined) {
     params.set("teamRate", String(filters.teamRate))
+  }
+  if (filters.advanceCents !== undefined) {
+    params.set("advanceCents", String(filters.advanceCents))
   }
 
   if (filters.from && filters.to) {

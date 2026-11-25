@@ -1,7 +1,30 @@
 "use client"
 
 import * as React from "react"
+import {
+  createColumnHelper,
+  createSortedRowModel,
+  rowSortingFeature,
+  sortFn_alphanumeric,
+  tableFeatures,
+  useTable,
+} from "@tanstack/react-table"
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ChevronsUpDownIcon,
+  RotateCcwIcon,
+  UserRoundCheckIcon,
+} from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Card,
   CardContent,
@@ -12,9 +35,6 @@ import {
 import { Input } from "@/components/ui/input"
 import type { SalesTableRow } from "@/types/overview"
 import { formatDate, formatInteger, formatMoney } from "@/utils/format"
-
-const selectClass =
-  "h-8 w-full rounded-none border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50"
 
 export interface LinesTableProps {
   rows: SalesTableRow[]
@@ -30,6 +50,20 @@ export interface LinesTableProps {
   description?: string
 }
 
+const linesFeatures = tableFeatures({
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+  sortFns: { alphanumeric: sortFn_alphanumeric },
+})
+
+const linesColumnHelper = createColumnHelper<typeof linesFeatures, SalesTableRow>()
+
+function SortIcon({ direction }: { direction: false | "asc" | "desc" }) {
+  if (direction === "asc") return <ArrowUpIcon className="size-3" />
+  if (direction === "desc") return <ArrowDownIcon className="size-3" />
+  return <ChevronsUpDownIcon className="size-3 opacity-50" />
+}
+
 export function LinesTable({
   rows,
   targetSeller,
@@ -39,8 +73,8 @@ export function LinesTable({
   readOnly = false,
   onSelectedLinesChange,
   onReassignedLinesChange,
-  title = "Ventas · selección manual",
-  description = "Elige a dedo las líneas que cuentan y reasigna las que son realmente tuyas. Base: Valor subtotal local (columna M del Excel). El registro original no se modifica.",
+  title = "Reasignar",
+  description,
 }: LinesTableProps) {
   const [search, setSearch] = React.useState("")
   const [seller, setSeller] = React.useState("")
@@ -109,20 +143,26 @@ export function LinesTable({
     0
   )
 
-  const setSelection = (ids: number[] | undefined) => {
-    onSelectedLinesChange?.(ids)
-  }
+  const setSelection = React.useCallback(
+    (ids: number[] | undefined) => {
+      onSelectedLinesChange?.(ids)
+    },
+    [onSelectedLinesChange]
+  )
 
-  const toggleRow = (id: number) => {
-    const next = new Set(selectedSet)
+  const toggleRow = React.useCallback(
+    (id: number) => {
+      const next = new Set(selectedSet)
 
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
 
-    setSelection([...next])
-  }
+      setSelection([...next])
+    },
+    [selectedSet, setSelection]
+  )
 
-  const toggleAllVisible = () => {
+  const toggleAllVisible = React.useCallback(() => {
     const next = new Set(selectedSet)
 
     for (const row of filtered) {
@@ -131,27 +171,25 @@ export function LinesTable({
     }
 
     setSelection([...next])
-  }
+  }, [allVisibleSelected, filtered, selectedSet, setSelection])
 
   const setReassignments = (ids: number[]) => {
     onReassignedLinesChange?.(ids)
   }
 
-  const toggleReassign = (id: number) => {
+  // Si todas las marcadas ya están asignadas, el mismo botón revierte y esas
+  // líneas dejan de contar en la venta propia del cálculo.
+  const allSelectedReassigned =
+    selectedRows.length > 0 &&
+    selectedRows.every((row) => reassignedSet.has(row.id))
+
+  const toggleAssignment = () => {
+    if (selectedRows.length === 0) return
+
     const next = new Set(reassignedSet)
-
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-
-    setReassignments([...next])
-  }
-
-  const setVisibleReassigned = (value: boolean) => {
-    const next = new Set(reassignedSet)
-
-    for (const row of filtered) {
-      if (value) next.add(row.id)
-      else next.delete(row.id)
+    for (const row of selectedRows) {
+      if (allSelectedReassigned) next.delete(row.id)
+      else next.add(row.id)
     }
 
     setReassignments([...next])
@@ -165,11 +203,214 @@ export function LinesTable({
     setOnlyReturns(false)
   }
 
+  const columns = React.useMemo(
+    () =>
+      linesColumnHelper.columns([
+        linesColumnHelper.display({
+          id: "select",
+          header: () => (
+            <th className="px-2 py-2 font-medium">
+              <input
+                type="checkbox"
+                aria-label="Seleccionar todas las visibles"
+                checked={allVisibleSelected}
+                disabled={readOnly || isLoading || filtered.length === 0}
+                onChange={toggleAllVisible}
+              />
+            </th>
+          ),
+          cell: ({ row }) => (
+            <td className="px-2 py-1.5">
+              <input
+                type="checkbox"
+                aria-label={`Seleccionar línea ${row.original.id}`}
+                checked={selectedSet.has(row.original.id)}
+                disabled={readOnly || isLoading}
+                onChange={() => toggleRow(row.original.id)}
+              />
+            </td>
+          ),
+        }),
+        linesColumnHelper.accessor("date", {
+          sortFn: "alphanumeric",
+          header: ({ column }) => (
+            <th className="px-2 py-2 font-medium">
+              <button
+                type="button"
+                className="flex items-center gap-1 hover:text-foreground"
+                onClick={column.getToggleSortingHandler()}
+              >
+                Fecha
+                <SortIcon direction={column.getIsSorted()} />
+              </button>
+            </th>
+          ),
+          cell: (info) => (
+            <td className="whitespace-nowrap px-2 py-1.5 tabular-nums">
+              {formatDate(info.getValue())}
+            </td>
+          ),
+        }),
+        linesColumnHelper.accessor("documentNumber", {
+          sortFn: "alphanumeric",
+          header: ({ column }) => (
+            <th className="px-2 py-2 font-medium">
+              <button
+                type="button"
+                className="flex items-center gap-1 hover:text-foreground"
+                onClick={column.getToggleSortingHandler()}
+              >
+                Documento
+                <SortIcon direction={column.getIsSorted()} />
+              </button>
+            </th>
+          ),
+          cell: (info) => (
+            <td className="whitespace-nowrap px-2 py-1.5">
+              {info.getValue()}
+              {info.row.original.isReturn ? (
+                <span className="ml-1 text-destructive">NCE</span>
+              ) : null}
+            </td>
+          ),
+        }),
+        linesColumnHelper.accessor("sellerKey", {
+          sortFn: "alphanumeric",
+          header: ({ column }) => (
+            <th className="px-2 py-2 font-medium">
+              <button
+                type="button"
+                className="flex items-center gap-1 hover:text-foreground"
+                onClick={column.getToggleSortingHandler()}
+              >
+                Vendedor
+                <SortIcon direction={column.getIsSorted()} />
+              </button>
+            </th>
+          ),
+          cell: (info) => (
+            <td className="max-w-48 px-2 py-1.5">
+              <div className="truncate" title={info.getValue()}>
+                {info.getValue()}
+              </div>
+              {reassignedSet.has(info.row.original.id) ? (
+                <div className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                  → {targetSeller}
+                </div>
+              ) : null}
+            </td>
+          ),
+        }),
+        linesColumnHelper.accessor("clientKey", {
+          sortFn: "alphanumeric",
+          header: ({ column }) => (
+            <th className="px-2 py-2 font-medium">
+              <button
+                type="button"
+                className="flex items-center gap-1 hover:text-foreground"
+                onClick={column.getToggleSortingHandler()}
+              >
+                Cliente
+                <SortIcon direction={column.getIsSorted()} />
+              </button>
+            </th>
+          ),
+          cell: (info) => (
+            <td
+              className="max-w-48 truncate px-2 py-1.5"
+              title={info.getValue()}
+            >
+              {info.getValue()}
+            </td>
+          ),
+        }),
+        linesColumnHelper.accessor("productLabel", {
+          sortFn: "alphanumeric",
+          header: ({ column }) => (
+            <th className="px-2 py-2 font-medium">
+              <button
+                type="button"
+                className="flex items-center gap-1 hover:text-foreground"
+                onClick={column.getToggleSortingHandler()}
+              >
+                Producto
+                <SortIcon direction={column.getIsSorted()} />
+              </button>
+            </th>
+          ),
+          cell: (info) => (
+            <td
+              className="max-w-56 truncate px-2 py-1.5"
+              title={`${info.getValue()} [${info.row.original.unit}]`}
+            >
+              {info.getValue()}
+            </td>
+          ),
+        }),
+        linesColumnHelper.accessor("quantity", {
+          header: ({ column }) => (
+            <th className="px-2 py-2 text-right font-medium">
+              <button
+                type="button"
+                className="flex w-full items-center justify-end gap-1 hover:text-foreground"
+                onClick={column.getToggleSortingHandler()}
+              >
+                Cant.
+                <SortIcon direction={column.getIsSorted()} />
+              </button>
+            </th>
+          ),
+          cell: (info) => (
+            <td className="px-2 py-1.5 text-right tabular-nums">
+              {formatInteger(info.getValue())}
+            </td>
+          ),
+        }),
+        linesColumnHelper.accessor("subtotalCents", {
+          header: ({ column }) => (
+            <th className="px-2 py-2 text-right font-medium">
+              <button
+                type="button"
+                className="flex w-full items-center justify-end gap-1 hover:text-foreground"
+                onClick={column.getToggleSortingHandler()}
+              >
+                Subtotal local
+                <SortIcon direction={column.getIsSorted()} />
+              </button>
+            </th>
+          ),
+          cell: (info) => (
+            <td className="px-2 py-1.5 text-right tabular-nums">
+              {formatMoney(info.getValue())}
+            </td>
+          ),
+        }),
+      ]),
+    [
+      allVisibleSelected,
+      filtered.length,
+      isLoading,
+      readOnly,
+      reassignedSet,
+      selectedSet,
+      targetSeller,
+      toggleAllVisible,
+      toggleRow,
+    ]
+  )
+
+  const table = useTable({
+    features: linesFeatures,
+    columns,
+    data: filtered,
+  })
+  const tableRows = table.getRowModel().rows
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -179,42 +420,45 @@ export function LinesTable({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <select
-            className={selectClass}
-            value={seller}
-            onChange={(event) => setSeller(event.target.value)}
-          >
-            <option value="">Todos los vendedores</option>
-            {sellers.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-          <select
-            className={selectClass}
-            value={client}
-            onChange={(event) => setClient(event.target.value)}
-          >
-            <option value="">Todos los clientes</option>
-            {clients.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-          <select
-            className={selectClass}
-            value={product}
-            onChange={(event) => setProduct(event.target.value)}
-          >
-            <option value="">Todos los productos</option>
-            {products.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
+          <Select value={seller} onValueChange={(value) => setSeller(value ?? "")}>
+            <SelectTrigger className="w-full" aria-label="Filtrar por vendedor">
+              <SelectValue placeholder="Todos los vendedores" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos los vendedores</SelectItem>
+              {sellers.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={client} onValueChange={(value) => setClient(value ?? "")}>
+            <SelectTrigger className="w-full" aria-label="Filtrar por cliente">
+              <SelectValue placeholder="Todos los clientes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos los clientes</SelectItem>
+              {clients.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={product} onValueChange={(value) => setProduct(value ?? "")}>
+            <SelectTrigger className="w-full" aria-label="Filtrar por producto">
+              <SelectValue placeholder="Todos los productos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos los productos</SelectItem>
+              {products.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -259,8 +503,23 @@ export function LinesTable({
                 disabled={isLoading}
                 onClick={() => setSelection(undefined)}
               >
-                Usar todas las líneas
+                Quitar selección
               </button>
+              <Button
+                type="button"
+                size="sm"
+                variant={allSelectedReassigned ? "outline" : "default"}
+                className={
+                  allSelectedReassigned
+                    ? "gap-1 text-[#3b82f6] hover:bg-[#3b82f6]/10"
+                    : "gap-1 bg-[#3b82f6] text-white hover:bg-[#3b82f6]/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+                }
+                disabled={isLoading || selectedRows.length === 0}
+                onClick={toggleAssignment}
+              >
+                {allSelectedReassigned ? <RotateCcwIcon /> : <UserRoundCheckIcon />}
+                {allSelectedReassigned ? "Revertir" : "Reasignar"}
+              </Button>
               <span className="font-medium">
                 {formatInteger(selectedRows.length)} seleccionadas ·{" "}
                 {formatMoney(selectedCents)}
@@ -268,23 +527,7 @@ export function LinesTable({
             </div>
 
             <div className="flex flex-wrap items-center gap-3 border-b py-2 text-xs">
-              <span className="font-medium">Reasignar a {targetSeller}</span>
-              <button
-                type="button"
-                className="underline disabled:opacity-50"
-                disabled={isLoading || filtered.length === 0}
-                onClick={() => setVisibleReassigned(true)}
-              >
-                Reasignar visibles
-              </button>
-              <button
-                type="button"
-                className="underline disabled:opacity-50"
-                disabled={isLoading || filtered.length === 0}
-                onClick={() => setVisibleReassigned(false)}
-              >
-                Quitar reasignación de visibles
-              </button>
+              <span className="font-medium">Reasignadas a {targetSeller}</span>
               <button
                 type="button"
                 className="underline disabled:opacity-50"
@@ -315,101 +558,37 @@ export function LinesTable({
 
         {selectedLines !== undefined && !readOnly ? (
           <p className="text-xs text-muted-foreground">
-            Selección manual activa: la comisión usa solo estas líneas e ignora
-            el filtro de vendedores.
+            Las líneas marcadas solo preparan reasignaciones; la comisión sigue
+            calculándose con los vendedores elegidos.
           </p>
         ) : null}
 
         <div className="max-h-[30rem] overflow-auto text-xs">
           <table className="w-full border-collapse text-left">
             <thead className="sticky top-0 z-10 bg-muted/60 backdrop-blur">
-              <tr className="border-b">
-                <th className="px-2 py-2 font-medium">
-                  <input
-                    type="checkbox"
-                    aria-label="Seleccionar todas las visibles"
-                    checked={allVisibleSelected}
-                    disabled={readOnly || isLoading || filtered.length === 0}
-                    onChange={toggleAllVisible}
-                  />
-                </th>
-                <th className="px-2 py-2 font-medium">Reasignar</th>
-                <th className="px-2 py-2 font-medium">Fecha</th>
-                <th className="px-2 py-2 font-medium">Documento</th>
-                <th className="px-2 py-2 font-medium">Vendedor</th>
-                <th className="px-2 py-2 font-medium">Cliente</th>
-                <th className="px-2 py-2 font-medium">Producto</th>
-                <th className="px-2 py-2 text-right font-medium">Cant.</th>
-                <th className="px-2 py-2 text-right font-medium">Subtotal local</th>
-              </tr>
+              {table.getHeaderGroups().map((group) => (
+                <tr key={group.id} className="border-b">
+                  {group.headers.map((header) => (
+                    <table.FlexRender key={header.id} header={header} />
+                  ))}
+                </tr>
+              ))}
             </thead>
             <tbody>
-              {filtered.map((row) => (
+              {tableRows.map((row) => (
                 <tr
                   key={row.id}
                   className="border-b last:border-0 hover:bg-muted/30"
                 >
-                  <td className="px-2 py-1.5">
-                    <input
-                      type="checkbox"
-                      aria-label={`Seleccionar línea ${row.id}`}
-                      checked={selectedSet.has(row.id)}
-                      disabled={readOnly || isLoading}
-                      onChange={() => toggleRow(row.id)}
-                    />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <input
-                      type="checkbox"
-                      aria-label={`Reasignar línea ${row.id} a ${targetSeller}`}
-                      checked={reassignedSet.has(row.id)}
-                      disabled={readOnly || isLoading}
-                      onChange={() => toggleReassign(row.id)}
-                    />
-                  </td>
-                  <td className="whitespace-nowrap px-2 py-1.5 tabular-nums">
-                    {formatDate(row.date)}
-                  </td>
-                  <td className="whitespace-nowrap px-2 py-1.5">
-                    {row.documentNumber}
-                    {row.isReturn ? (
-                      <span className="ml-1 text-destructive">NCE</span>
-                    ) : null}
-                  </td>
-                  <td className="max-w-48 px-2 py-1.5">
-                    <div className="truncate" title={row.sellerKey}>
-                      {row.sellerKey}
-                    </div>
-                    {reassignedSet.has(row.id) ? (
-                      <div className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                        → {targetSeller}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td
-                    className="max-w-48 truncate px-2 py-1.5"
-                    title={row.clientKey}
-                  >
-                    {row.clientKey}
-                  </td>
-                  <td
-                    className="max-w-56 truncate px-2 py-1.5"
-                    title={`${row.productLabel} [${row.unit}]`}
-                  >
-                    {row.productLabel}
-                  </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">
-                    {formatInteger(row.quantity)}
-                  </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">
-                    {formatMoney(row.subtotalCents)}
-                  </td>
+                  {row.getAllCells().map((cell) => (
+                    <table.FlexRender key={cell.id} cell={cell} />
+                  ))}
                 </tr>
               ))}
-              {filtered.length === 0 ? (
+              {tableRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={table.getAllLeafColumns().length}
                     className="px-2 py-6 text-center text-muted-foreground"
                   >
                     No hay líneas con estos filtros.

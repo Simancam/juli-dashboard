@@ -10,15 +10,18 @@ const DEFAULT_FILTERS: OverviewFilters = {
   metric: "value",
   order: "desc",
   limit: 10,
-  advanceCents: 0,
-  includeNonProducts: false,
 }
+
+const DEFAULT_ANALYSIS_NAME = "Informe de ventas"
 
 interface DashboardDataContextValue {
   file: File | null
   analysisId: string | null
   overview: OverviewResponse | null
   filters: OverviewFilters
+  /** Nombre del informe, editable antes de guardar. */
+  name: string
+  setName: (name: string) => void
   isLoading: boolean
   isSaving: boolean
   error: string | null
@@ -42,6 +45,7 @@ export function DashboardDataProvider({
   const [analysisId, setAnalysisId] = React.useState<string | null>(null)
   const [overview, setOverview] = React.useState<OverviewResponse | null>(null)
   const [filters, setFilters] = React.useState<OverviewFilters>(DEFAULT_FILTERS)
+  const [name, setName] = React.useState(DEFAULT_ANALYSIS_NAME)
   const [isLoading, setIsLoading] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -95,6 +99,7 @@ export function DashboardDataProvider({
       setAnalysisId(null)
       setOverview(null)
       setFilters(DEFAULT_FILTERS)
+      setName(DEFAULT_ANALYSIS_NAME)
 
       const result = await load(null, nextFile, DEFAULT_FILTERS)
       return result !== null
@@ -116,6 +121,7 @@ export function DashboardDataProvider({
         periodStart: overview.period.start,
         periodEnd: overview.period.end,
         filters,
+        name: name.trim() || DEFAULT_ANALYSIS_NAME,
       })
       const id = saved.analysisId ?? null
 
@@ -135,7 +141,7 @@ export function DashboardDataProvider({
     } finally {
       setIsSaving(false)
     }
-  }, [file, overview, filters])
+  }, [file, overview, filters, name])
 
   const applyFilters = React.useCallback(
     async (next: Partial<OverviewFilters>) => {
@@ -152,6 +158,7 @@ export function DashboardDataProvider({
     setAnalysisId(null)
     setOverview(null)
     setFilters(DEFAULT_FILTERS)
+    setName(DEFAULT_ANALYSIS_NAME)
     setError(null)
     setIsLoading(false)
     setIsSaving(false)
@@ -163,6 +170,8 @@ export function DashboardDataProvider({
       analysisId,
       overview,
       filters,
+      name,
+      setName,
       isLoading,
       isSaving,
       error,
@@ -176,6 +185,8 @@ export function DashboardDataProvider({
       analysisId,
       overview,
       filters,
+      name,
+      setName,
       isLoading,
       isSaving,
       error,

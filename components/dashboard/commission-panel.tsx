@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { useDashboardData } from "@/hooks/useDashboardData"
+import { getCommissionProfile } from "@/lib/config/commission-profiles"
 import { formatInteger, formatMoney, formatPercent } from "@/utils/format"
 
 interface RowProps {
@@ -32,15 +33,16 @@ function Row({ label, value, emphasis = false }: RowProps) {
 export function CommissionPanel() {
   const { overview, filters, isLoading, applyFilters } = useDashboardData()
 
-  if (!overview) {
+  if (!overview?.commission) {
     return null
   }
 
   const { sellerKey, ownRate, teamRate, result, reassignments, warnings } =
     overview.commission
+  const profileSellerKey = getCommissionProfile().sellerKey
   const availableSellers = overview.sellers
   const selectedSellers = filters.sellers ?? availableSellers
-  const manualSelectionActive = filters.selectedLines !== undefined
+  const markedLines = filters.selectedLines?.length ?? 0
 
   const reassignedCents = reassignments.reduce(
     (total, item) => total + item.subtotalCents,
@@ -93,33 +95,14 @@ export function CommissionPanel() {
           label={`Comisión equipo (${formatPercent(teamRate)})`}
           value={formatMoney(result.teamCommissionCents)}
         />
-        <Row label="Anticipo" value={formatMoney(result.advanceCents)} />
         <Row label="Total comisión" value={formatMoney(result.totalCommissionCents)} emphasis />
-        <Row
-          label={result.netToPayCents < 0 ? "Saldo a favor" : "Neto a pagar"}
-          value={formatMoney(Math.abs(result.netToPayCents))}
-          emphasis
-        />
 
         <div className="mt-4 space-y-2 border-t pt-3">
-          {manualSelectionActive ? (
-            <div className="space-y-1">
-              <p className="font-medium">
-                Selección manual activa: {formatInteger(filters.selectedLines?.length ?? 0)} líneas
-              </p>
-              <p className="text-muted-foreground">
-                La comisión usa solo las líneas elegidas en la tabla. El filtro
-                de vendedores no se aplica mientras esté activa.
-              </p>
-              <button
-                type="button"
-                className="underline disabled:opacity-50"
-                disabled={isLoading}
-                onClick={() => void applyFilters({ selectedLines: undefined })}
-              >
-                Volver a todos los vendedores
-              </button>
-            </div>
+          {markedLines > 0 ? (
+            <p className="text-muted-foreground">
+              {formatInteger(markedLines)} línea(s) marcadas en la tabla: solo
+              preparan reasignaciones y no cambian este cálculo.
+            </p>
           ) : null}
           {reassignments.length > 0 ? (
             <div className="space-y-1 rounded-md border border-emerald-600/30 bg-emerald-600/5 p-2">
@@ -144,9 +127,7 @@ export function CommissionPanel() {
               </ul>
             </div>
           ) : null}
-          <div
-            className={`flex items-center justify-between gap-2 ${manualSelectionActive ? "opacity-50" : ""}`}
-          >
+          <div className="flex items-center justify-between gap-2">
             <span className="font-medium">
               Vendedores incluidos ({formatInteger(selectedSellers.length)}/
               {formatInteger(availableSellers.length)})
@@ -155,7 +136,7 @@ export function CommissionPanel() {
               <button
                 type="button"
                 className="underline disabled:opacity-50"
-                disabled={isLoading || manualSelectionActive}
+                disabled={isLoading}
                 onClick={() => void applyFilters({ sellers: [...availableSellers] })}
               >
                 Todos
@@ -163,7 +144,7 @@ export function CommissionPanel() {
               <button
                 type="button"
                 className="underline disabled:opacity-50"
-                disabled={isLoading || manualSelectionActive}
+                disabled={isLoading}
                 onClick={() => void applyFilters({ sellers: [] })}
               >
                 Ninguno
@@ -175,8 +156,13 @@ export function CommissionPanel() {
               <label key={key} className="flex items-center gap-2">
                 <input
                   type="checkbox"
+                  className={
+                    key === profileSellerKey
+                      ? "accent-emerald-600"
+                      : "accent-[#3b82f6]"
+                  }
                   checked={selectedSellers.includes(key)}
-                  disabled={isLoading || manualSelectionActive}
+                  disabled={isLoading}
                   onChange={() => toggleSeller(key)}
                 />
                 <span className="truncate" title={key}>

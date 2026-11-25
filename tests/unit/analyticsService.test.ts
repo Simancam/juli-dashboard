@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   calculateKpis,
   filterLinesByPeriod,
+  rankClients,
+  rankFamilies,
   rankProducts,
 } from "@/services/analytics/analyticsService"
 import { makeSaleLineDraft } from "@/tests/fixtures/sales"
@@ -85,7 +87,7 @@ describe("analyticsService", () => {
     ).toHaveLength(0)
   })
 
-  it("excluye no productos por defecto y separa unidades", () => {
+  it("incluye servicios y otros no producto y separa unidades", () => {
     const ranked = rankProducts(lines, {
       metric: "value",
       order: "desc",
@@ -95,18 +97,97 @@ describe("analyticsService", () => {
     expect(ranked.products.map((entry) => entry.key)).toEqual([
       "CABLE-1|MT",
       "ABRAZ-1|UND",
+      "PROY-1|UND",
     ])
     expect(ranked.products[0].documents).toBe(1)
     expect(ranked.products[1].returnsCents).toBe(-50_000)
+  })
 
-    const withNonProducts = rankProducts(lines, {
-      metric: "value",
-      order: "desc",
-      limit: 10,
-      includeNonProducts: true,
+  it("rankea clientes por venta neta con participación acumulada", () => {
+    const clients = rankClients(lines)
+
+    expect(clients).toHaveLength(1)
+    expect(clients[0]).toMatchObject({
+      key: "CLIENTE UNO",
+      netSalesCents: 300_000,
+      documents: 2,
+      returnsCents: 0,
     })
+    expect(clients[0].share).toBeCloseTo(1)
+    expect(clients[0].cumulativeShare).toBeCloseTo(1)
 
-    expect(withNonProducts.products).toHaveLength(3)
+    const withMoreClients = rankClients(
+      [
+        ...lines,
+        makeSaleLineDraft({
+          documentNumber: "FEF-7",
+          clientKey: "CLIENTE TRES",
+          clientName: "CLIENTE TRES SAS",
+          item: "CABLE-2",
+          itemDescription: "CABLE 2",
+          unit: "MT",
+          quantity: 1,
+          subtotalCents: 100_000,
+          margin: 10,
+        }),
+      ]
+    )
+
+    expect(withMoreClients.map((client) => client.key)).toEqual([
+      "CLIENTE UNO",
+      "CLIENTE TRES",
+    ])
+    expect(withMoreClients[0].cumulativeShare).toBeCloseTo(0.75)
+    expect(withMoreClients[1].cumulativeShare).toBeCloseTo(1)
+    expect(withMoreClients[1].label).toBe("CLIENTE TRES SAS")
+  })
+
+  it("devuelve todos los clientes para paginar en la interfaz", () => {
+    const many = Array.from({ length: 12 }, (_, index) =>
+      makeSaleLineDraft({
+        documentNumber: `FEF-${index + 1}`,
+        clientKey: `CLIENTE-${index + 1}`,
+        clientName: `CLIENTE ${index + 1}`,
+        subtotalCents: (index + 1) * 10_000,
+      })
+    )
+
+    expect(rankClients(many)).toHaveLength(12)
+  })
+
+  it("agrupa la venta neta por familia de producto o servicio", () => {
+    const familyLines = [
+      ...lines,
+      makeSaleLineDraft({
+        documentNumber: "FEF-5",
+        itemDescription: "CONECTOR 3/4",
+        familyKey: "CONECTORES",
+        subtotalCents: 80_000,
+      }),
+      makeSaleLineDraft({
+        documentNumber: "FEF-6",
+        itemDescription: "SERV INSTALACION",
+        familyKey: "SERV",
+        isProduct: false,
+        subtotalCents: 120_000,
+      }),
+    ]
+
+    const families = rankFamilies(familyLines)
+
+    expect(families.map((family) => family.key)).toEqual([
+      "ABRAZADERAS",
+      "SERV",
+      "CONECTORES",
+      "PROYECTOS",
+    ])
+    expect(families[0]).toMatchObject({
+      label: "Abrazaderas",
+      netSalesCents: 250_000,
+      documents: 3,
+    })
+    expect(families[1]).toMatchObject({ label: "Servicios", netSalesCents: 120_000 })
+    expect(families[0].share).toBeCloseTo(250_000 / 500_000)
   })
 
   it("no mezcla unidades en el ranking por cantidad", () => {

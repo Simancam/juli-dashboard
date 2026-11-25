@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import {
-  ChartColumnIcon,
+  FileTextIcon,
   LayoutDashboardIcon,
   ReceiptTextIcon,
 } from "lucide-react"
@@ -29,9 +29,9 @@ const navigation = [
     icon: <LayoutDashboardIcon />,
   },
   {
-    title: "Analizar",
+    title: "Reportes",
     url: "/dashboard/analizar",
-    icon: <ChartColumnIcon />,
+    icon: <FileTextIcon />,
   },
   {
     title: "Comisiones",

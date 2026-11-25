@@ -4,6 +4,7 @@ import type {
   CommissionResult,
   Reassignment,
 } from "@/types/commissions"
+import type { CommissionLine } from "@/types/commission-reports"
 import type { SaleLineDraft } from "@/types/sales"
 
 /** Filtra las líneas por vendedores. `undefined` significa todos. */
@@ -110,4 +111,89 @@ export function calculateCommission(
     },
     warnings,
   }
+}
+
+export interface CommissionEntry {
+  id: number
+  line: SaleLineDraft
+}
+
+export interface CommissionCalculationOptions {
+  sellers?: string[]
+  reassignedLines?: number[]
+  profile: CommissionProfile
+  advanceCents?: number
+}
+
+export interface CommissionCalculation {
+  /** Líneas efectivas con su id, tal como entraron al cálculo. */
+  entries: CommissionEntry[]
+  commissionLines: SaleLineDraft[]
+  reassignments: Reassignment[]
+  result: CommissionResult
+  warnings: string[]
+}
+
+/**
+ * Base canónica de comisiones, compartida por la vista previa y el guardado.
+ * Marcar líneas en la tabla no reemplaza el filtro de vendedores: solo las
+ * reasignadas entran además de los vendedores elegidos.
+ */
+export function buildCommissionCalculation(
+  entries: CommissionEntry[],
+  options: CommissionCalculationOptions
+): CommissionCalculation {
+  const { sellers, reassignedLines, profile, advanceCents = 0 } = options
+  const sellerSet = sellers ? new Set(sellers) : null
+  const reassignedSet = new Set(reassignedLines ?? [])
+  const baseEntries = entries.filter(
+    ({ id, line }) =>
+      (sellerSet === null || sellerSet.has(line.sellerKey)) ||
+      reassignedSet.has(id)
+  )
+
+  const { lines: commissionLines, reassignments } = applyReassignments(
+    baseEntries,
+    reassignedLines,
+    profile.sellerKey
+  )
+  const calculated = calculateCommission(commissionLines, profile, advanceCents)
+
+  return {
+    entries: baseEntries.map(({ id }, index) => ({
+      id,
+      line: commissionLines[index],
+    })),
+    commissionLines,
+    reassignments,
+    ...calculated,
+  }
+}
+
+/** Snapshot línea a línea de lo que realmente se guarda en el reporte. */
+export function toSavedCommissionLines(
+  entries: CommissionEntry[],
+  profile: CommissionProfile,
+  originalSellerKeys?: Map<number, string>
+): CommissionLine[] {
+  return entries.map(({ id, line }) => {
+    const rate =
+      line.sellerKey === profile.sellerKey ? profile.ownRate : profile.teamRate
+
+    return {
+      id,
+      date: line.date,
+      documentNumber: line.documentNumber,
+      sellerKey: originalSellerKeys?.get(id) ?? line.sellerKey,
+      effectiveSellerKey: line.sellerKey,
+      clientKey: line.clientKey,
+      productLabel: line.itemDescription || line.item,
+      unit: line.unit,
+      quantity: line.quantity,
+      subtotalCents: line.subtotalCents,
+      isReturn: line.isReturn,
+      rate,
+      commissionCents: roundRateToCents(line.subtotalCents, rate),
+    }
+  })
 }

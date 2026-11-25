@@ -20,7 +20,7 @@ export function AnalysisEditForm({
   onCancel,
   onSaved,
 }: AnalysisEditFormProps) {
-  const [name, setName] = React.useState(analysis.name || analysis.fileName)
+  const [name, setName] = React.useState(analysis.name)
   const [periodStart, setPeriodStart] = React.useState(analysis.periodStart)
   const [periodEnd, setPeriodEnd] = React.useState(analysis.periodEnd)
   const [isSaving, setIsSaving] = React.useState(false)

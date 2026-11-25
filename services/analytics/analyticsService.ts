@@ -1,3 +1,4 @@
+import { OTHER_FAMILY } from "@/lib/config/families"
 import type { Kpis, RankedEntry } from "@/types/analytics"
 import type {
   ProductMetric,
@@ -100,13 +101,10 @@ export function rankProducts(
     metric: ProductMetric
     order: ProductOrder
     limit: number
-    includeNonProducts?: boolean
   }
 ): { products: RankedEntry[]; returnedProducts: RankedEntry[] } {
-  const eligible = options.includeNonProducts
-    ? lines
-    : lines.filter((line) => line.isProduct)
-
+  // Servicios y otros no producto siempre forman parte del análisis.
+  const eligible = lines
   const grouped = new Map<string, ProductGroup>()
 
   for (const line of eligible) {
@@ -161,4 +159,135 @@ export function rankProducts(
     .sort((a, b) => a.netSalesCents - b.netSalesCents)
 
   return { products, returnedProducts }
+}
+
+const FAMILY_LABELS: Readonly<Record<string, string>> = {
+  SERV: "Servicios",
+  PROYECTOS: "Proyectos",
+  ADMINISTRACION: "Administración",
+  IMPREVISTOS: "Imprevistos",
+  UTILIDAD: "Utilidad",
+  GALVANIZADO: "Galvanizado",
+  OTROS: "Otros",
+}
+
+function familyLabel(key: string): string {
+  return FAMILY_LABELS[key] ?? key.charAt(0) + key.slice(1).toLowerCase()
+}
+
+interface FamilyGroup {
+  netSalesCents: number
+  documents: Set<string>
+}
+
+/** Ventas netas por familia de producto o servicio (incluye los no producto). */
+export function rankFamilies(lines: SaleLineDraft[]): RankedEntry[] {
+  const grouped = new Map<string, FamilyGroup>()
+
+  for (const line of lines) {
+    const key = line.familyKey || OTHER_FAMILY
+    const group = grouped.get(key) ?? {
+      netSalesCents: 0,
+      documents: new Set<string>(),
+    }
+
+    group.netSalesCents += line.subtotalCents
+    group.documents.add(line.documentNumber)
+    grouped.set(key, group)
+  }
+
+  const totalNetSalesCents = sum(lines.map((line) => line.subtotalCents))
+
+  return [...grouped.entries()]
+    .filter(([, group]) => group.netSalesCents > 0)
+    .map(([key, group]) => ({
+      key,
+      label: familyLabel(key),
+      netSalesCents: group.netSalesCents,
+      share:
+        totalNetSalesCents === 0
+          ? 0
+          : group.netSalesCents / totalNetSalesCents,
+      documents: group.documents.size,
+      returnsCents: 0,
+      margin: 0,
+    }))
+    .sort((a, b) => b.netSalesCents - a.netSalesCents)
+}
+
+interface ClientGroup {
+  key: string
+  label: string
+  netSalesCents: number
+  returnsCents: number
+  marginNumerator: number
+  marginWeight: number
+  documents: Set<string>
+}
+
+/**
+ * Ranking de clientes por venta neta. Es la lectura principal del análisis:
+ * quién compró más, cuánto concentra y con qué margen.
+ */
+export function rankClients(
+  lines: SaleLineDraft[],
+  options: { order?: ProductOrder } = {}
+): RankedEntry[] {
+  const grouped = new Map<string, ClientGroup>()
+
+  for (const line of lines) {
+    const group = grouped.get(line.clientKey) ?? {
+      key: line.clientKey,
+      label: line.clientName || line.clientKey,
+      netSalesCents: 0,
+      returnsCents: 0,
+      marginNumerator: 0,
+      marginWeight: 0,
+      documents: new Set<string>(),
+    }
+
+    group.netSalesCents += line.subtotalCents
+
+    if (line.isReturn) {
+      group.returnsCents += line.subtotalCents
+    }
+
+    if (line.subtotalCents > 0) {
+      group.marginNumerator += line.margin * line.subtotalCents
+      group.marginWeight += line.subtotalCents
+    }
+
+    group.documents.add(line.documentNumber)
+    grouped.set(line.clientKey, group)
+  }
+
+  const totalNetSalesCents = sum(lines.map((line) => line.subtotalCents))
+  const direction = options.order === "asc" ? 1 : -1
+
+  const entries = [...grouped.values()]
+    .filter((group) => group.netSalesCents > 0)
+    .map<RankedEntry>((group) => ({
+      key: group.key,
+      label: group.label,
+      netSalesCents: group.netSalesCents,
+      share:
+        totalNetSalesCents === 0
+          ? 0
+          : group.netSalesCents / totalNetSalesCents,
+      documents: group.documents.size,
+      returnsCents: group.returnsCents,
+      margin:
+        group.marginWeight === 0
+          ? 0
+          : group.marginNumerator / group.marginWeight,
+    }))
+    .sort((a, b) => (a.netSalesCents - b.netSalesCents) * direction)
+
+  let cumulativeShare = 0
+
+  // Se devuelven todos los clientes: la paginación y la gráfica viven en la UI.
+  return entries.map((entry) => {
+    cumulativeShare += entry.share
+    return { ...entry, cumulativeShare }
+  })
 }

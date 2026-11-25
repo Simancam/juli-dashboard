@@ -7,6 +7,8 @@ export interface UploadDatasetOptions {
   periodEnd?: string
   /** Filtros del análisis mostrado; el servidor recalcula el resultado guardado. */
   filters?: OverviewFilters
+  /** Nombre con el que se guarda el informe. */
+  name?: string
 }
 
 export async function uploadDataset(
@@ -26,6 +28,10 @@ export async function uploadDataset(
     )) {
       query.append(key, value)
     }
+  }
+
+  if (options.name?.trim()) {
+    query.set("name", options.name.trim())
   }
 
   const body = new FormData()

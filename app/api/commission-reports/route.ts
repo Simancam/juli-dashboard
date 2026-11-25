@@ -1,17 +1,11 @@
 import { NextResponse } from "next/server"
 import { ZodError } from "zod"
 
-import { getCommissionProfile } from "@/lib/config/commission-profiles"
 import {
   commissionReportCreateSchema,
   commissionReportListQuerySchema,
 } from "@/lib/schemas/commission-reports"
-import { filterLinesByPeriod } from "@/services/analytics/analyticsService"
-import {
-  applyReassignments,
-  calculateCommission,
-  filterLinesBySellers,
-} from "@/services/commissions/commissionService"
+import { calculateCommissionReport } from "@/services/commissionReportsCalculation"
 import { createAnalysesRepository } from "@/services/repositories/analysesRepository"
 import { createCommissionReportsRepository } from "@/services/repositories/commissionReportsRepository"
 
@@ -64,67 +58,24 @@ export async function POST(request: Request) {
       )
     }
 
-    const profile = getCommissionProfile(body.sellerKey)
-    const effectiveProfile = {
-      ...profile,
-      ownRate: body.ownRate ?? profile.ownRate,
-      teamRate: body.teamRate ?? profile.teamRate,
-    }
-
     const storedLines = await analyses.getLines(analysis.datasetId)
-    const lines = filterLinesByPeriod(storedLines, {
-      start: analysis.periodStart,
-      end: analysis.periodEnd,
+    const calculated = calculateCommissionReport({
+      periodStart: analysis.periodStart,
+      periodEnd: analysis.periodEnd,
+      lines: storedLines,
+      sellerKey: body.sellerKey,
+      ownRate: body.ownRate,
+      teamRate: body.teamRate,
+      advanceCents: body.advanceCents,
+      sellers: body.sellers,
+      reassignedLines: body.reassignedLines,
     })
-    const selected = body.selectedLines
-    const selectedSet = new Set(selected ?? [])
-    const baseLines =
-      selected !== undefined
-        ? lines.filter((line) => selectedSet.has(line.lineNo))
-        : filterLinesBySellers(lines, body.sellers)
-    const baseIds = new Set(baseLines.map((line) => line.lineNo))
-    const ignoredReassignments = (body.reassignedLines ?? []).filter(
-      (id) => !baseIds.has(id)
-    )
-
-    const { lines: commissionLines, reassignments } = applyReassignments(
-      baseLines.map((line) => ({ id: line.lineNo, line })),
-      body.reassignedLines,
-      effectiveProfile.sellerKey
-    )
-
-    const calculated = calculateCommission(
-      commissionLines,
-      effectiveProfile,
-      body.advanceCents
-    )
-    const warnings = [...calculated.warnings]
-
-    if (ignoredReassignments.length > 0) {
-      warnings.push(
-        `${ignoredReassignments.length} línea(s) reasignada(s) quedaron fuera de la selección y no se aplicaron`
-      )
-    }
-    const inputs = {
-      ...(body.sellers !== undefined ? { sellers: body.sellers } : {}),
-      ...(selected !== undefined ? { selectedLines: selected } : {}),
-      ...(body.reassignedLines !== undefined
-        ? { reassignedLines: body.reassignedLines }
-        : {}),
-      reassignments,
-    }
 
     const reports = createCommissionReportsRepository()
     const report = await reports.create({
       analysisId: analysis.id,
       version: await reports.nextVersion(analysis.id),
-      sellerKey: effectiveProfile.sellerKey,
-      ownRate: effectiveProfile.ownRate,
-      teamRate: effectiveProfile.teamRate,
-      advanceCents: body.advanceCents,
-      inputs,
-      result: calculated.result,
-      warnings,
+      ...calculated,
     })
 
     return NextResponse.json({ report }, { status: 201 })

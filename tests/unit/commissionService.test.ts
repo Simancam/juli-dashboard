@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest"
 import { getCommissionProfile } from "@/lib/config/commission-profiles"
 import {
   applyReassignments,
+  buildCommissionCalculation,
   calculateCommission,
   filterLinesBySellers,
+  toSavedCommissionLines,
 } from "@/services/commissions/commissionService"
 import { makeSaleLineDraft } from "@/tests/fixtures/sales"
 
@@ -169,5 +171,86 @@ describe("commissionService", () => {
     expect(result.advanceCents).toBe(100_000)
     expect(result.netToPayCents).toBe(0)
     expect(warnings).toHaveLength(1)
+  })
+
+  it("calcula la base completa con vendedores y reasignaciones", () => {
+    const own = makeSaleLineDraft({
+      sellerKey: profile.sellerKey,
+      subtotalCents: 1_000_000,
+    })
+    const team = makeSaleLineDraft({
+      documentNumber: "FEV-2",
+      sellerKey: "VENDEDOR A",
+      subtotalCents: 2_000_000,
+    })
+    const reassigned = makeSaleLineDraft({
+      documentNumber: "FEV-3",
+      sellerKey: "VENDEDOR B",
+      subtotalCents: 3_000_000,
+    })
+    const entries = [
+      { id: 1, line: own },
+      { id: 2, line: team },
+      { id: 3, line: reassigned },
+    ]
+
+    const calculation = buildCommissionCalculation(entries, {
+      sellers: [profile.sellerKey, "VENDEDOR A"],
+      reassignedLines: [3],
+      profile,
+    })
+
+    expect(calculation.entries.map((entry) => entry.id)).toEqual([1, 2, 3])
+    expect(calculation.result.ownCents).toBe(4_000_000)
+    expect(calculation.result.teamCents).toBe(2_000_000)
+    expect(calculation.result.totalCommissionCents).toBe(100_000)
+    expect(calculation.reassignments).toHaveLength(1)
+  })
+
+  it("serializa todas las líneas guardadas con vendedor efectivo y tasa", () => {
+    const own = makeSaleLineDraft({
+      sellerKey: profile.sellerKey,
+      subtotalCents: 1_000_000,
+    })
+    const reassigned = makeSaleLineDraft({
+      documentNumber: "FEV-3",
+      sellerKey: "VENDEDOR B",
+      subtotalCents: 3_000_000,
+    })
+    const calculation = buildCommissionCalculation(
+      [
+        { id: 1, line: own },
+        { id: 3, line: reassigned },
+      ],
+      {
+        sellers: [profile.sellerKey],
+        reassignedLines: [3],
+        profile,
+      }
+    )
+    const saved = toSavedCommissionLines(
+      calculation.entries,
+      profile,
+      new Map([
+        [1, own.sellerKey],
+        [3, reassigned.sellerKey],
+      ])
+    )
+
+    expect(saved).toHaveLength(2)
+    expect(saved[0]).toMatchObject({
+      id: 1,
+      sellerKey: profile.sellerKey,
+      effectiveSellerKey: profile.sellerKey,
+      rate: profile.ownRate,
+      commissionCents: 20_000,
+    })
+    expect(saved[1]).toMatchObject({
+      id: 3,
+      sellerKey: "VENDEDOR B",
+      effectiveSellerKey: profile.sellerKey,
+      rate: profile.ownRate,
+      commissionCents: 60_000,
+    })
   })
 })

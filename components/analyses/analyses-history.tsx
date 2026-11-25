@@ -2,7 +2,13 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react"
+import {
+  ChevronRightIcon,
+  EyeIcon,
+  LoaderCircleIcon,
+  PencilIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { toast } from "sonner"
 
@@ -23,13 +29,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { useDashboardData } from "@/hooks/useDashboardData"
 import { deleteAnalysis, listAnalyses } from "@/services/analysesService"
 import type { SavedAnalysis } from "@/types/analyses"
@@ -151,16 +151,8 @@ export function AnalysesHistory() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Informes guardados</CardTitle>
-        <CardDescription>
-          Agrupados por año y mes. Despliega cada grupo para ver, editar o
-          eliminar sus informes.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    <div className="space-y-3">
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
         {analyses.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Todavía no hay informes guardados. Analiza un archivo y pulsa
@@ -230,6 +222,17 @@ export function AnalysesHistory() {
                                   />
                                 ) : (
                                   <>
+                                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                      <span className="font-medium">
+                                        {analysis.name}
+                                      </span>
+                                      <span
+                                        className="text-[10px] text-muted-foreground/70"
+                                        title={analysis.fileName}
+                                      >
+                                        {analysis.fileName}
+                                      </span>
+                                    </div>
                                     <div className="space-y-0.5">
                                       <p className="text-muted-foreground">
                                         Fecha que cubre
@@ -247,31 +250,42 @@ export function AnalysesHistory() {
                                         {formatDate(analysis.createdAt.slice(0, 10))}
                                       </p>
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                                    <div className="flex flex-wrap items-center gap-1 border-t pt-3">
                                       <Link
-                                        className={buttonVariants({ size: "sm" })}
+                                        className={buttonVariants({
+                                          variant: "outline",
+                                          size: "icon-sm",
+                                        })}
                                         href={`/dashboard/analizar/${analysis.id}`}
+                                        aria-label="Ver reporte"
+                                        title="Ver reporte"
                                       >
-                                        Ver
+                                        <EyeIcon className="size-3.5" />
                                       </Link>
                                       <Button
-                                        size="sm"
-                                        variant="outline"
+                                        size="icon-sm"
+                                        variant="ghost"
                                         onClick={() => setEditingId(analysis.id)}
                                         disabled={busyId !== null}
+                                        aria-label="Editar reporte"
+                                        title="Editar reporte"
                                       >
-                                        Editar
+                                        <PencilIcon className="size-3.5" />
                                       </Button>
                                       <Button
-                                        size="sm"
+                                        size="icon-sm"
                                         variant="ghost"
+                                        className="text-destructive hover:bg-transparent hover:text-destructive"
                                         onClick={() => setPendingDelete(analysis)}
                                         disabled={busyId !== null}
+                                        aria-label="Eliminar reporte"
+                                        title="Eliminar reporte"
                                       >
                                         {busyId === analysis.id ? (
-                                          <LoaderCircleIcon className="animate-spin" />
-                                        ) : null}
-                                        Eliminar
+                                          <LoaderCircleIcon className="size-3.5 animate-spin" />
+                                        ) : (
+                                          <Trash2Icon className="size-3.5" />
+                                        )}
                                       </Button>
                                     </div>
                                   </>
@@ -288,7 +302,6 @@ export function AnalysesHistory() {
             ))}
           </div>
         )}
-      </CardContent>
       <AlertDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {
@@ -322,6 +335,6 @@ export function AnalysesHistory() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </div>
   )
 }

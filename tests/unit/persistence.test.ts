@@ -115,11 +115,28 @@ describe("mappers de persistencia", () => {
     expect(detail.snapshot.kpis).toEqual({ documents: 2 })
   })
 
-  it("extrae las reasignaciones guardadas dentro de inputs", () => {
+  it("extrae las reasignaciones y las líneas completas guardadas dentro de inputs", () => {
     const reassignments = [{ id: 3, originalSellerKey: "OTRO", assignedTo: "JULIANA", subtotalCents: 10 }]
+    const commissionLines = [
+      {
+        id: 1,
+        date: "2025-10-21",
+        documentNumber: "FEV-1",
+        sellerKey: "JULIANA",
+        effectiveSellerKey: "JULIANA",
+        clientKey: "CLIENTE",
+        productLabel: "PRODUCTO",
+        unit: "UND",
+        quantity: 1,
+        subtotalCents: 100,
+        isReturn: false,
+        rate: 0.02,
+        commissionCents: 2,
+      },
+    ]
     const row = {
       id: "report-1",
-      inputs: asJson({ sellers: [], reassignments }),
+      inputs: asJson({ sellers: [], reassignments, commissionLines }),
       result: asJson({ totalCommissionCents: 100 }),
       warnings: asJson(["sin líneas"]),
       own_rate: 0.02,
@@ -128,6 +145,7 @@ describe("mappers de persistencia", () => {
     const report = mapCommissionReportRow(row)
 
     expect(report.reassignments).toEqual(reassignments)
+    expect(report.inputs.commissionLines).toEqual(commissionLines)
     expect(report.warnings).toEqual(["sin líneas"])
     expect(report.result).toEqual({ totalCommissionCents: 100 })
     expect(report.ownRate).toBe(0.02)
@@ -147,7 +165,6 @@ describe("schemas de la fase de persistencia", () => {
       analysisId: "11111111-1111-4111-8111-111111111111",
     })
 
-    expect(parsed.advanceCents).toBe(0)
     expect(parsed.selectedLines).toBeUndefined()
   })
 

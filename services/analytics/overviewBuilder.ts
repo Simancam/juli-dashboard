@@ -9,10 +9,14 @@ import type {
 } from "@/types/overview"
 import type { DateRange, SaleLineDraft } from "@/types/sales"
 
-import { calculateKpis, rankProducts } from "./analyticsService"
 import {
-  applyReassignments,
-  calculateCommission,
+  calculateKpis,
+  rankClients,
+  rankFamilies,
+  rankProducts,
+} from "./analyticsService"
+import {
+  buildCommissionCalculation,
   filterLinesBySellers,
 } from "../commissions/commissionService"
 
@@ -22,10 +26,13 @@ export interface OverviewQuery {
   metric: ProductMetric
   order: ProductOrder
   limit: number
-  advance: number
   ownRate?: number
   teamRate?: number
-  includeNonProducts: boolean
+  /** Anticipo en centavos, descontado del total de la comisión. */
+  advanceCents?: number
+  /** false/undefined = el overview no calcula comisión (flujo Análisis). */
+  includeCommission?: boolean
+  /** Filtro general para KPIs, clientes y productos. */
   sellers?: string[]
   selectedLines?: number[]
   reassignedLines?: number[]
@@ -53,39 +60,20 @@ function buildCommission(
     ownRate: query.ownRate ?? defaultProfile.ownRate,
     teamRate: query.teamRate ?? defaultProfile.teamRate,
   }
-  const selected = query.selectedLines
-  const selectedSet = new Set(selected ?? [])
-  const baseLines =
-    selected !== undefined
-      ? lines.filter((line) => selectedSet.has(idOf(line)))
-      : filterLinesBySellers(lines, query.sellers)
-
-  const { lines: commissionLines, reassignments } = applyReassignments(
-    baseLines.map((line) => ({ id: idOf(line), line })),
-    query.reassignedLines,
-    profile.sellerKey
-  )
-
-  const commission = calculateCommission(commissionLines, profile, query.advance)
-
-  const baseIds = new Set(baseLines.map(idOf))
-  const ignoredReassignments = (query.reassignedLines ?? []).filter(
-    (id) => !baseIds.has(id)
-  )
-  if (ignoredReassignments.length > 0) {
-    commission.warnings.push(
-      `${ignoredReassignments.length} línea(s) reasignada(s) quedaron fuera de la selección y no se aplicaron`
-    )
-  }
-
-  if (selected !== undefined) {
-    const outOfPeriod = selected.filter((id) => !periodIds.has(id))
-    if (outOfPeriod.length > 0) {
-      commission.warnings.push(
-        `${outOfPeriod.length} línea(s) seleccionada(s) fuera del periodo`
-      )
+  // La tabla solo sirve para revisar ventas y preparar reasignaciones: marcar
+  // líneas nunca reemplaza el filtro de vendedores que define la base.
+  // Las líneas reasignadas entran a la base de forma explícita.
+  const commission = buildCommissionCalculation(
+    lines.map((line) => ({ id: idOf(line), line })),
+    {
+      sellers: query.sellers,
+      reassignedLines: query.reassignedLines,
+      profile,
+      advanceCents: query.advanceCents,
     }
-  } else if (query.sellers) {
+  )
+
+  if (query.sellers) {
     for (const sellerKey of query.sellers) {
       if (!sellers.includes(sellerKey)) {
         commission.warnings.push(
@@ -108,8 +96,9 @@ function buildCommission(
     sellerKey: profile.sellerKey,
     ownRate: profile.ownRate,
     teamRate: profile.teamRate,
-    ...commission,
-    reassignments,
+    result: commission.result,
+    warnings: commission.warnings,
+    reassignments: commission.reassignments,
   }
 }
 
@@ -118,6 +107,10 @@ export function buildOverview(input: BuildOverviewInput): OverviewResponse {
   const { lines, idOf, report, period, query } = input
   const sellers = [...new Set(lines.map((line) => line.sellerKey))].sort()
   const periodIds = new Set(lines.map(idOf))
+  // El filtro de vendedores es general: afecta KPIs, clientes y productos.
+  // La tabla conserva todas las líneas para permitir la selección manual
+  // (y la reasignación de cuentas de otros vendedores a Juliana).
+  const scopedLines = filterLinesBySellers(lines, query.sellers)
 
   const table: SalesTableRow[] = lines.map((line) => ({
     id: idOf(line),
@@ -132,21 +125,26 @@ export function buildOverview(input: BuildOverviewInput): OverviewResponse {
     isReturn: line.isReturn,
   }))
 
-  const products = rankProducts(lines, {
+  const products = rankProducts(scopedLines, {
     metric: query.metric,
     order: query.order,
     limit: query.limit,
-    includeNonProducts: query.includeNonProducts,
   })
+
+  const commission = query.includeCommission
+    ? buildCommission(lines, idOf, query, periodIds, sellers)
+    : undefined
 
   return {
     report,
     period,
     sellers,
     table,
-    kpis: calculateKpis(lines),
+    kpis: calculateKpis(scopedLines),
+    clients: rankClients(scopedLines),
+    families: rankFamilies(scopedLines),
     products: products.products,
     returnedProducts: products.returnedProducts,
-    commission: buildCommission(lines, idOf, query, periodIds, sellers),
+    ...(commission ? { commission } : {}),
   }
 }

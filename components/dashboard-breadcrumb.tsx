@@ -17,7 +17,7 @@ function sectionTitle(pathname: string | null): string {
     return "Resultado del análisis"
   }
   if (pathname?.startsWith("/dashboard/analizar")) {
-    return pathname.split("/")[3] ? "Ver informe" : "Analizar"
+    return pathname.split("/")[3] ? "Ver informe" : "Reportes"
   }
 
   return "Panel histórico"

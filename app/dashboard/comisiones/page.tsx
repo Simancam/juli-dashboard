@@ -3,25 +3,44 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { LoaderCircleIcon } from "lucide-react"
+import {
+  EyeIcon,
+  LoaderCircleIcon,
+  PencilIcon,
+  SaveIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { toast } from "sonner"
 
+import { CommissionResultCard } from "@/components/commissions/commission-result"
 import { LinesTable } from "@/components/commissions/lines-table"
 import { SellerSelector } from "@/components/commissions/seller-selector"
-import { Button, buttonVariants } from "@/components/ui/button"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { getCommissionProfile } from "@/lib/config/commission-profiles"
 import { analyticsService } from "@/services/analyticsService"
 import { listAnalyses } from "@/services/analysesService"
 import {
   createCommissionReport,
+  deleteCommissionReport,
   listCommissionReports,
 } from "@/services/commissionReportsService"
 import type { SavedAnalysis } from "@/types/analyses"
@@ -29,18 +48,13 @@ import type { SavedCommissionReport } from "@/types/commission-reports"
 import type { OverviewFilters } from "@/types/overview"
 import { formatDate, formatInteger, formatMoney, formatPercent } from "@/utils/format"
 
-const selectClass =
-  "h-9 w-full rounded-none border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50"
-
 /** Sin dataset no hay líneas desde las que calcular; se ocultan de la lista. */
 function usableAnalyses(analyses: SavedAnalysis[]): SavedAnalysis[] {
   return analyses.filter((analysis) => analysis.datasetId !== null)
 }
 
 function keepValidSelection(current: string, analyses: SavedAnalysis[]): string {
-  return analyses.some((analysis) => analysis.id === current)
-    ? current
-    : (analyses[0]?.id ?? "")
+  return analyses.some((analysis) => analysis.id === current) ? current : ""
 }
 
 export default function ComisionesPage() {
@@ -53,7 +67,9 @@ export default function ComisionesPage() {
   const [ownRate, setOwnRate] = React.useState("2")
   const [teamRate, setTeamRate] = React.useState("1")
   const [advance, setAdvance] = React.useState("0")
-  const [sellers, setSellers] = React.useState<string[] | undefined>(undefined)
+  const [sellers, setSellers] = React.useState<string[] | undefined>([
+    profile.sellerKey,
+  ])
   const [selectedLines, setSelectedLines] = React.useState<number[] | undefined>(
     undefined
   )
@@ -64,11 +80,16 @@ export default function ComisionesPage() {
   const [error, setError] = React.useState<string | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isSaving, setIsSaving] = React.useState(false)
+  const [busyId, setBusyId] = React.useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] =
+    React.useState<SavedCommissionReport | null>(null)
   const requestId = React.useRef(0)
 
   const own = Number(ownRate) / 100
   const team = Number(teamRate) / 100
-  const advanceCents = Math.round(Number(advance) * 100)
+  const advanceValue = Number(advance)
+  const advanceValid = Number.isFinite(advanceValue) && advanceValue >= 0
+  const advanceCents = advanceValid ? Math.round(advanceValue * 100) : 0
   const ratesValid =
     Number.isFinite(own) &&
     Number.isFinite(team) &&
@@ -76,8 +97,17 @@ export default function ComisionesPage() {
     own <= 1 &&
     team >= 0 &&
     team <= 1 &&
-    Number.isFinite(advanceCents) &&
-    advanceCents >= 0
+    advanceValid
+
+  // El Select de shadcn necesita las etiquetas para mostrarlas en el trigger.
+  const reportItems = React.useMemo(
+    () =>
+      analyses.map((analysis) => ({
+        value: analysis.id,
+        label: `${formatDate(analysis.periodStart)} – ${formatDate(analysis.periodEnd)}`,
+      })),
+    [analyses]
+  )
 
   const refresh = React.useCallback(async () => {
     const [analysisList, reportList] = await Promise.all([
@@ -129,12 +159,11 @@ export default function ComisionesPage() {
       metric: "value",
       order: "desc",
       limit: 10,
-      includeNonProducts: false,
-      advanceCents,
+      includeCommission: true,
       ownRate: own,
       teamRate: team,
+      advanceCents,
       sellers,
-      selectedLines,
       reassignedLines,
     }
 
@@ -154,14 +183,23 @@ export default function ComisionesPage() {
     return () => {
       active = false
     }
-  }, [selected, ratesValid, advanceCents, own, team, sellers, selectedLines, reassignedLines])
+  }, [
+    selected,
+    ratesValid,
+    own,
+    team,
+    advanceCents,
+    sellers,
+    reassignedLines,
+  ])
 
   const updateAnalysis = (id: string) => {
     setSelected(id)
     setPreview(null)
     setSelectedLines(undefined)
     setReassignedLines([])
-    setSellers(undefined)
+    setAdvance("0")
+    setSellers([profile.sellerKey])
     setError(null)
   }
 
@@ -186,13 +224,10 @@ export default function ComisionesPage() {
         teamRate: team,
         advanceCents,
         ...(sellers !== undefined ? { sellers } : {}),
-        ...(selectedLines !== undefined ? { selectedLines } : {}),
         reassignedLines,
       })
       await refresh()
-      toast.success("Reporte de comisiones guardado", {
-        description: `Versión ${report.version}`,
-      })
+      toast.success("Reporte de comisiones guardado")
       router.push(`/dashboard/comisiones/${report.id}`)
     } catch (cause) {
       const message =
@@ -201,6 +236,25 @@ export default function ComisionesPage() {
       toast.error("No se pudo guardar el reporte", { description: message })
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleDelete = async (report: SavedCommissionReport) => {
+    setBusyId(report.id)
+    setError(null)
+
+    try {
+      await deleteCommissionReport(report.id)
+      if (pendingDelete?.id === report.id) setPendingDelete(null)
+      await refresh()
+      toast.success("Comisiones eliminadas")
+    } catch (cause) {
+      const message =
+        cause instanceof Error ? cause.message : "No se pudo eliminar el reporte"
+      setError(message)
+      toast.error("No se pudo eliminar el reporte", { description: message })
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -218,21 +272,23 @@ export default function ComisionesPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <h1 className="font-heading text-2xl font-semibold tracking-tight">
             Comisiones
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Elige el informe, los vendedores y las líneas. Las cifras se calculan
-            siempre en el servidor desde las líneas guardadas.
-          </p>
         </div>
-        {reports.length > 0 ? (
-          <span className="text-xs text-muted-foreground">
-            {formatInteger(reports.length)} versión(es) guardada(s)
-          </span>
-        ) : null}
+        <div className="flex items-center gap-3">
+          {reports.length > 0 ? (
+            <span className="text-xs text-muted-foreground">
+              {formatInteger(reports.length)} Comisiones guardadas
+            </span>
+          ) : null}
+          <Button className="gap-2" onClick={handleSave} disabled={isSaving || !selected || !ratesValid}>
+            {isSaving ? <LoaderCircleIcon className="animate-spin" /> : <SaveIcon />}
+            Guardar Comisiones
+          </Button>
+        </div>
       </div>
 
       {error ? (
@@ -244,122 +300,67 @@ export default function ComisionesPage() {
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Nueva versión</CardTitle>
-          <CardDescription>
-            Cada envío crea una versión inmutable. Podrás verla con todas sus
-            entradas después de guardar.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="space-y-1 text-xs lg:col-span-2">
-            <span className="font-medium">Informe</span>
-            <select
-              className={selectClass}
-              value={selected}
-              onChange={(event) => updateAnalysis(event.target.value)}
-            >
-              {analyses.length === 0 ? (
-                <option value="" disabled>
-                  No hay análisis con líneas disponibles
-                </option>
-              ) : null}
-              {analyses.map((analysis) => (
-                <option key={analysis.id} value={analysis.id}>
-                  {formatDate(analysis.periodStart)} · {analysis.fileName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1 text-xs">
-            <span className="font-medium">Own rate (%)</span>
-            <Input value={ownRate} onChange={(event) => setOwnRate(event.target.value)} />
-          </label>
-          <label className="space-y-1 text-xs">
-            <span className="font-medium">Team rate (%)</span>
-            <Input value={teamRate} onChange={(event) => setTeamRate(event.target.value)} />
-          </label>
-          <label className="space-y-1 text-xs">
-            <span className="font-medium">Anticipo (COP)</span>
-            <Input
-              type="number"
-              min="0"
-              step="1"
-              inputMode="numeric"
-              value={advance}
-              onChange={(event) => setAdvance(event.target.value)}
-            />
-          </label>
-          <div className="flex items-end lg:col-span-5">
-            <Button onClick={handleSave} disabled={isSaving || !selected || !ratesValid}>
-              {isSaving ? <LoaderCircleIcon className="animate-spin" /> : null}
-              Guardar versión
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="h-full">
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <label className="space-y-2 text-xs sm:col-span-2">
+              <span className="font-medium">Informe</span>
+              <Select
+                value={selected}
+                items={reportItems}
+                onValueChange={(value) => updateAnalysis(value ?? "")}
+              >
+                <SelectTrigger className="w-full" aria-label="Informe">
+                  <SelectValue placeholder="Selecciona un informe" />
+                </SelectTrigger>
+                <SelectContent>
+                  {analyses.length === 0 ? (
+                    <SelectItem value="" disabled>
+                      No hay informes con líneas disponibles
+                    </SelectItem>
+                  ) : (
+                    <SelectItem value="">Selecciona un informe</SelectItem>
+                  )}
+                  {reportItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="space-y-2 text-xs">
+              <span className="font-medium">Own rate (%)</span>
+              <Input
+                value={ownRate}
+                onChange={(event) => setOwnRate(event.target.value)}
+              />
+            </label>
+            <label className="space-y-2 text-xs">
+              <span className="font-medium">Team rate (%)</span>
+              <Input
+                value={teamRate}
+                onChange={(event) => setTeamRate(event.target.value)}
+              />
+            </label>
+            <label className="space-y-2 text-xs sm:col-span-2">
+              <span className="font-medium">Anticipo ($)</span>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={advance}
+                onChange={(event) => setAdvance(event.target.value)}
+              />
+            </label>
+          </CardContent>
+        </Card>
         <SellerSelector
+          className="h-full"
           sellers={shownPreview?.sellers ?? []}
           selected={sellers}
           onChange={setSellers}
         />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Resultado en vivo</CardTitle>
-            <CardDescription>
-              {profile.sellerKey} · {formatPercent(own)} propio +{" "}
-              {formatPercent(team)} de equipo
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2 text-xs sm:grid-cols-2">
-            <div>
-              <p className="text-muted-foreground">Venta propia</p>
-              <p className="tabular-nums">{formatMoney(commission?.result.ownCents ?? 0)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Venta equipo</p>
-              <p className="tabular-nums">{formatMoney(commission?.result.teamCents ?? 0)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Comisión propia</p>
-              <p className="tabular-nums">
-                {formatMoney(commission?.result.ownCommissionCents ?? 0)}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Comisión equipo</p>
-              <p className="tabular-nums">
-                {formatMoney(commission?.result.teamCommissionCents ?? 0)}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Total comisión</p>
-              <p className="font-medium tabular-nums">
-                {formatMoney(commission?.result.totalCommissionCents ?? 0)}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">
-                {(commission?.result.netToPayCents ?? 0) < 0
-                  ? "Saldo a favor"
-                  : "Neto a pagar"}
-              </p>
-              <p className="font-medium tabular-nums">
-                {formatMoney(Math.abs(commission?.result.netToPayCents ?? 0))}
-              </p>
-            </div>
-            {commission?.reassignments.length ? (
-              <p className="text-emerald-600 sm:col-span-2 dark:text-emerald-400">
-                {formatInteger(commission.reassignments.length)} línea(s)
-                reasignadas a {profile.sellerKey}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
       </div>
 
       {shownPreview ? (
@@ -373,13 +374,33 @@ export default function ComisionesPage() {
         />
       ) : null}
 
+      {commission ? (
+        <CommissionResultCard
+          result={commission.result}
+          ownRate={own}
+          teamRate={team}
+          sellerKey={profile.sellerKey}
+          reassignmentCount={commission.reassignments.length}
+          reassignedCents={commission.reassignments.reduce(
+            (total, item) => total + item.subtotalCents,
+            0
+          )}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Resultado</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            Selecciona un informe y revisa las tasas para ver paso a paso cómo
+            se obtiene la comisión y el neto a pagar.
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
-          <CardTitle>Versiones guardadas</CardTitle>
-          <CardDescription>
-            Abre una versión para ver el detalle completo: vendedores, líneas
-            elegidas, reasignaciones y resultado.
-          </CardDescription>
+          <CardTitle>Comisiones guardadas</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {reports.length === 0 ? (
@@ -392,27 +413,86 @@ export default function ComisionesPage() {
               >
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">
-                    v{report.version} · {report.sellerKey} ·{" "}
-                    {formatPercent(report.ownRate)} propio /{" "}
+                    {report.sellerKey} · {formatPercent(report.ownRate)} propio /{" "}
                     {formatPercent(report.teamRate)} equipo ·{" "}
                     {report.createdAt.slice(0, 10)}
                   </p>
                   <p className="font-medium tabular-nums">
-                    Comisión {formatMoney(report.result.totalCommissionCents)} · a pagar{" "}
-                    {formatMoney(report.result.netToPayCents)}
+                    Comisión {formatMoney(report.result.totalCommissionCents)}
                   </p>
                 </div>
-                <Link
-                  className={buttonVariants({ variant: "outline", size: "sm" })}
-                  href={`/dashboard/comisiones/${report.id}`}
-                >
-                  Ver detalle
-                </Link>
+                <div className="flex flex-wrap items-center gap-1">
+                  <Link
+                    className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+                    href={`/dashboard/comisiones/${report.id}`}
+                    aria-label="Ver detalle"
+                    title="Ver detalle"
+                  >
+                    <EyeIcon className="size-3.5" />
+                  </Link>
+                  <Link
+                    className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+                    href={`/dashboard/comisiones/${report.id}?editar=1`}
+                    aria-label="Editar"
+                    title="Editar"
+                  >
+                    <PencilIcon className="size-3.5" />
+                  </Link>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="text-destructive hover:bg-transparent hover:text-destructive"
+                    onClick={() => setPendingDelete(report)}
+                    disabled={busyId !== null}
+                    aria-label="Eliminar"
+                    title="Eliminar"
+                  >
+                    {busyId === report.id ? (
+                      <LoaderCircleIcon className="animate-spin" />
+                    ) : (
+                      <Trash2Icon className="size-3.5" />
+                    )}
+                  </Button>
+                </div>
               </div>
             ))
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open && busyId === null) setPendingDelete(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar estas Comisiones?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará Comisiones {pendingDelete?.version} de{" "}
+              {pendingDelete?.sellerKey}. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busyId !== null}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={busyId !== null}
+              onClick={() => {
+                if (pendingDelete) void handleDelete(pendingDelete)
+              }}
+            >
+              {busyId !== null ? (
+                <LoaderCircleIcon className="animate-spin" />
+              ) : null}
+              {busyId !== null ? "Eliminando…" : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
